@@ -1,0 +1,177 @@
+/* EVE Online Character Tracker - Custom Theme
+ * This file contains custom styling for the application
+ */
+
+/* Define custom CSS variables */
+:root {
+  /* Custom color scheme */
+  --primary-color: #1a237e;
+  --secondary-color: #ff4081;
+  --background-dark: #121212;
+  --background-light: #f5f5f5;
+  --text-light: #ffffff;
+  --text-dark: #212121;
+  
+  /* Custom sizing */
+  --header-height: 64px;
+  --sidebar-width: 250px;
+  --card-border-radius: 8px;
+}
+
+/* Custom background for the entire app */
+body {
+  background-image: url('https://images.eveonline.com/Corporation/98000001_1024.png');
+  background-size: cover;
+  background-attachment: fixed;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: var(--background-dark);
+}
+
+/* Add a semi-transparent overlay to improve readability */
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: -1;
+}
+
+/* Custom header styling */
+.MuiAppBar-root {
+  background-color: var(--primary-color) !important;
+  height: var(--header-height);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom sidebar styling */
+.sidebar {
+  width: var(--sidebar-width);
+  background: linear-gradient(to bottom, var(--primary-color), #303f9f);
+  color: var(--text-light);
+  height: calc(100vh - var(--header-height));
+}
+
+/* Custom styling for cards */
+.MuiCard-root {
+  border-radius: var(--card-border-radius);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Custom styling for dashboard widgets */
+.dashboard-widget {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Add EVE faction logos as backgrounds to cards based on data attributes */
+.faction-card[data-faction="amarr"] {
+  background-image: url('https://images.eveonline.com/Alliance/500003_64.png');
+  background-position: right bottom;
+  background-repeat: no-repeat;
+  background-size: 48px;
+}
+
+.faction-card[data-faction="caldari"] {
+  background-image: url('https://images.eveonline.com/Alliance/500001_64.png');
+  background-position: right bottom;
+  background-repeat: no-repeat;
+  background-size: 48px;
+}
+
+.faction-card[data-faction="gallente"] {
+  background-image: url('https://images.eveonline.com/Alliance/500004_64.png');
+  background-position: right bottom;
+  background-repeat: no-repeat;
+  background-size: 48px;
+}
+
+.faction-card[data-faction="minmatar"] {
+  background-image: url('https://images.eveonline.com/Alliance/500002_64.png');
+  background-position: right bottom;
+  background-repeat: no-repeat;
+  background-size: 48px;
+}
+
+/* Custom styling for EVE portraits */
+.eve-portrait {
+  border: 2px solid var(--secondary-color);
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(0, 64, 255, 0.5);
+}
+
+/* Custom footer */
+.footer {
+  background-color: var(--primary-color);
+  color: var(--text-light);
+  text-align: center;
+  padding: 16px;
+}
+
+/* Make tables more EVE-like */
+.MuiTable-root {
+  background-color: rgba(10, 20, 30, 0.8);
+  color: #e0e0e0;
+}
+
+.MuiTableHead-root {
+  background-color: rgba(26, 35, 126, 0.7);
+}
+
+.MuiTableRow-root:nth-of-type(odd) {
+  background-color: rgba(30, 40, 50, 0.4);
+}
+
+/* Custom styling for ISK amounts */
+.isk-amount {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  color: #4caf50;
+}
+
+.isk-amount.negative {
+  color: #f44336;
+}
+
+/* Custom progress bars for skills */
+.skill-progress {
+  height: 8px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.skill-progress-bar {
+  height: 100%;
+  background: linear-gradient(to right, #304ffe, #7b1fa2);
+}
+
+/* Media queries for responsive design */
+@media (max-width: 960px) {
+  :root {
+    --sidebar-width: 200px;
+  }
+}
+
+@media (max-width: 600px) {
+  :root {
+    --header-height: 56px;
+  }
+  
+  .sidebar {
+    width: 0;
+    position: fixed;
+    z-index: 1000;
+    transition: width 0.3s;
+  }
+  
+  .sidebar.open {
+    width: 240px;
+  }
+}

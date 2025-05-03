@@ -28,5 +28,5 @@ A comprehensive web application for tracking EVE Online character and corporatio
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Thrainthepain/eve-tracker.git
+   git clone https://github.com/yourusername/eve-tracker.git
    cd eve-tracker

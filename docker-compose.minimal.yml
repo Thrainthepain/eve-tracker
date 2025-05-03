@@ -1,0 +1,38 @@
+version: '3'
+
+services:
+  mongodb:
+    image: mongo:4.4
+    container_name: eve-tracker-mongodb
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - eve-network
+
+  backend:
+    build: .
+    container_name: eve-tracker-backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongodb
+    networks:
+      - eve-network
+
+  frontend:
+    build: 
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: eve-tracker-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - eve-network
+
+networks:
+  eve-network:
+
+volumes:
+  mongo_data:
