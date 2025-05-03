@@ -1,0 +1,17 @@
+# Add these volumes to the docker-compose.yml file:
+volumes:
+  mongo_data:
+  ssl_certs:
+  letsencrypt_data:
+  logs:
+  backups:
+
+# Update the backend service to include these volumes:
+backend:
+  # ...existing configuration...
+  volumes:
+    - ./:/app
+    - /app/node_modules
+    - logs:/app/logs
+    - backups:/app/backups
+  # ...

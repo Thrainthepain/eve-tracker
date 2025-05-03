@@ -1,0 +1,36 @@
+{
+  "name": "eve-tracker",
+  "version": "1.0.0",
+  "description": "EVE Online Character Tracker",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "server": "nodemon server/server.js",
+    "client": "cd client && npm start",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "install-all": "npm install && cd client && npm install",
+    "build": "cd client && npm run build",
+    "prod": "NODE_ENV=production npm start"
+  },
+  "dependencies": {
+    "axios": "^0.24.0",
+    "cors": "^2.8.5",
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "express-session": "^1.17.2",
+    "connect-mongo": "^4.6.0",
+    "jsonwebtoken": "^8.5.1",
+    "mongoose": "^6.0.12",
+    "passport": "^0.5.0",
+    "passport-oauth2": "^1.6.1",
+    "node-schedule": "^2.1.0",
+    "winston": "^3.3.3"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.14",
+    "concurrently": "^6.3.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

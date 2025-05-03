@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:4.4
+    container_name: eve-tracker-mongodb
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME:-root}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD:-password}
+    networks:
+      - eve-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: eve-tracker-backend
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME:-root}:${MONGO_INITDB_ROOT_PASSWORD:-password}@mongodb:27017/eve-tracker?authSource=admin
+      - CLIENT_URL=${CLIENT_URL:-http://localhost}
+      - SERVER_URL=${SERVER_URL:-http://localhost:5000}
+      - EVE_CLIENT_ID=${EVE_CLIENT_ID}
+      - EVE_CLIENT_SECRET=${EVE_CLIENT_SECRET}
+      - SESSION_SECRET=${SESSION_SECRET:-keyboard_cat}
+      - NODE_ENV=${NODE_ENV:-production}
+      - WEBSITE_NAME=${WEBSITE_NAME:-"EVE Character Tracker"}
+      - SERVER_PROTOCOL=${SERVER_PROTOCOL:-http}
+      - SERVER_DOMAIN=${SERVER_DOMAIN:-localhost}
+      - SERVER_SUBDOMAIN=${SERVER_SUBDOMAIN:-}
+      - FULL_DOMAIN=${FULL_DOMAIN:-localhost}
+      - DEV_EMAIL=${DEV_EMAIL:-}
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - logs:/app/logs
+      - backups:/app/backups
+    networks:
+      - eve-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: eve-tracker-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      - SERVER_PROTOCOL=${SERVER_PROTOCOL:-http}
+      - FULL_DOMAIN=${FULL_DOMAIN:-localhost}
+      - SSL_MODE=${SSL_MODE:-skip}
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - eve-network
+    volumes:
+      - ssl_certs:/etc/nginx/ssl
+      - letsencrypt_data:/etc/letsencrypt
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf.template
+
+  # Add SSL companion container if using Let's Encrypt
+  certbot:
+    image: certbot/certbot
+    container_name: eve-tracker-certbot
+    environment:
+      - SSL_MODE=${SSL_MODE:-skip}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-}
+      - DOMAIN=${FULL_DOMAIN:-localhost}
+    volumes:
+      - letsencrypt_data:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'if [ \"$${SSL_MODE}\" = \"letsencrypt\" ]; then certbot certonly --webroot -w /var/www/certbot --email $${LETSENCRYPT_EMAIL} --agree-tos --no-eff-email -d $${DOMAIN}; else echo \"SSL not configured for automatic setup\"; fi'"
+    depends_on:
+      - frontend
+    profiles: ["ssl"]
+
+networks:
+  eve-network:
+
+volumes:
+  mongo_data:
+  ssl_certs:
+  letsencrypt_data:
+  logs:
+  backups:
