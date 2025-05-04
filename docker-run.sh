@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # EVE Online Character Tracker - All-In-One Docker Setup Script
-# Created by: Thrainthepaindocker
-# Last Updated: 2025-05-04 15:20:31
+# Created by: Thrainthepainfailed
+# Last Updated: 2025-05-04 15:54:45
 
 echo "==================================================================="
 echo "EVE Online Character Tracker - All-In-One Docker Setup Script"
-echo "Created by: Thrainthepaindocker"
-echo "Last Updated: 2025-05-04 15:20:31"
+echo "Created by: Thrainthepainfailed"
+echo "Last Updated: 2025-05-04 15:54:45"
 echo "==================================================================="
 
 # Function to set up directory structure
@@ -110,7 +110,7 @@ EOF
     echo "Creating minimal nginx.conf..."
     cat > nginx.conf << 'EOF'
 # Simple Nginx configuration
-# Last Updated: 2025-05-04 15:20:31
+# Last Updated: 2025-05-04 15:54:45
 
 server {
     listen 80;
@@ -166,9 +166,9 @@ EOF
   # Create backend Dockerfile if it doesn't exist
   if [ ! -f "Dockerfile" ]; then
     echo "Creating backend Dockerfile..."
-    # Write the Dockerfile separately instead of using heredoc to avoid parsing issues
+    # Write the Dockerfile separately with FIXED DEPENDENCIES
     echo "# Modern Dockerfile for Python 3.12 compatibility" > Dockerfile
-    echo "# Last Updated: 2025-05-04 15:20:31" >> Dockerfile
+    echo "# Last Updated: 2025-05-04 15:54:45" >> Dockerfile
     echo "" >> Dockerfile
     echo "# Node.js base for the backend" >> Dockerfile
     echo "FROM node:20-slim AS backend" >> Dockerfile
@@ -176,6 +176,7 @@ EOF
     echo "WORKDIR /app" >> Dockerfile
     echo "" >> Dockerfile
     echo "# Install modern tooling including Python 3.12 support" >> Dockerfile
+    echo "# FIXED: Removed mongodb-clients which was causing the build failure" >> Dockerfile
     echo "RUN apt-get update && apt-get install -y \\" >> Dockerfile
     echo "    python3-full \\" >> Dockerfile
     echo "    python3-pip \\" >> Dockerfile
@@ -223,9 +224,9 @@ EOF
     echo "Creating frontend Dockerfile..."
     mkdir -p client
     
-    # Write the frontend Dockerfile separately instead of using heredoc
+    # Write the frontend Dockerfile separately
     echo "# Modern Dockerfile for Frontend" > client/Dockerfile
-    echo "# Last Updated: 2025-05-04 15:20:31" >> client/Dockerfile
+    echo "# Last Updated: 2025-05-04 15:54:45" >> client/Dockerfile
     echo "" >> client/Dockerfile
     echo "# Stage 1: Build the React application" >> client/Dockerfile
     echo "FROM node:20-slim as build" >> client/Dockerfile
@@ -279,85 +280,6 @@ EOF
     
     echo "Created frontend Dockerfile"
   fi
-}
-
-# Function to check and install Docker if needed
-check_docker() {
-  echo "Checking Docker and Docker Compose installation..."
-  
-  # Check for Docker
-  if ! command -v docker &> /dev/null; then
-    echo "Docker is not installed. Installing Docker..."
-    
-    # Update package lists
-    sudo apt-get update
-    
-    # Install prerequisites
-    sudo apt-get install -y \
-      apt-transport-https \
-      ca-certificates \
-      curl \
-      gnupg \
-      lsb-release
-    
-    # Add Docker's official GPG key
-    sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    
-    # Add the repository
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-      $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-    
-    # Install Docker Engine and Docker Compose Plugin
-    sudo apt-get update
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-    
-    # Add user to docker group
-    sudo usermod -aG docker $USER
-    echo "Added $USER to docker group. You may need to log out and back in for this to take effect."
-    
-    # Install Python dependencies
-    sudo apt-get install -y python3-distutils python3-setuptools python3-venv
-  else
-    echo "Docker is already installed."
-  fi
-  
-  # Check for Docker Compose v2 plugin
-  if ! docker compose version &> /dev/null; then
-    # If Docker Compose v2 plugin is not available, check for standalone docker-compose
-    if ! command -v docker-compose &> /dev/null; then
-      echo "Docker Compose not found. Installing Docker Compose plugin..."
-      sudo apt-get update
-      sudo apt-get install -y docker-compose-plugin
-      
-      # If still not available, install Python 3 dependencies and pip install
-      if ! docker compose version &> /dev/null; then
-        echo "Installing Docker Compose via pip..."
-        sudo apt-get install -y python3-pip python3-distutils python3-setuptools
-        pip3 install docker-compose
-      fi
-    else
-      echo "Using standalone docker-compose."
-      # Install Python dependencies to prevent distutils error
-      sudo apt-get install -y python3-distutils python3-setuptools
-    fi
-  else
-    echo "Docker Compose V2 plugin is installed."
-  fi
-  
-  # Determine which compose command to use
-  if docker compose version &> /dev/null; then
-    compose_cmd="docker compose"
-  elif command -v docker-compose &> /dev/null; then
-    compose_cmd="docker-compose"
-  else
-    echo "No Docker Compose command found. Please install Docker Compose."
-    exit 1
-  fi
-  
-  echo "Using compose command: $compose_cmd"
-  return 0
 }
 
 # Update docker-compose.yml
@@ -453,6 +375,85 @@ volumes:
 EOF
 
   echo "docker-compose.yml file updated."
+}
+
+# Function to check and install Docker if needed
+check_docker() {
+  echo "Checking Docker and Docker Compose installation..."
+  
+  # Check for Docker
+  if ! command -v docker &> /dev/null; then
+    echo "Docker is not installed. Installing Docker..."
+    
+    # Update package lists
+    sudo apt update
+    
+    # Install prerequisites
+    sudo apt install -y \
+      apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg \
+      lsb-release
+
+    # Add Docker's official GPG key
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    
+    # Add the repository
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # Install Docker Engine and Docker Compose Plugin
+    sudo apt update
+    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    
+    # Add user to docker group
+    sudo usermod -aG docker $USER
+    echo "Added $USER to docker group. You may need to log out and back in for this to take effect."
+    
+    # Fix Python dependencies for newer Ubuntu
+    sudo apt install -y python3-pip python3-distutils python3-setuptools python3-dev build-essential
+  else
+    echo "Docker is already installed."
+  fi
+  
+  # Check for Docker Compose v2 plugin
+  if ! docker compose version &> /dev/null; then
+    # If Docker Compose v2 plugin is not available, check for standalone docker-compose
+    if ! command -v docker-compose &> /dev/null; then
+      echo "Docker Compose not found. Installing Docker Compose plugin..."
+      sudo apt update
+      sudo apt install -y docker-compose-plugin
+      
+      # If still not available, install Python 3 dependencies and pip install
+      if ! docker compose version &> /dev/null; then
+        echo "Installing Docker Compose via pip..."
+        sudo apt install -y python3-pip python3-distutils python3-setuptools
+        sudo pip3 install docker-compose
+      fi
+    else
+      echo "Using standalone docker-compose."
+      # Install Python dependencies to prevent distutils error
+      sudo apt install -y python3-distutils python3-setuptools
+    fi
+  else
+    echo "Docker Compose V2 plugin is installed."
+  fi
+  
+  # Determine which compose command to use
+  if docker compose version &> /dev/null; then
+    compose_cmd="docker compose"
+  elif command -v docker-compose &> /dev/null; then
+    compose_cmd="docker-compose"
+  else
+    echo "No Docker Compose command found. Please install Docker Compose."
+    exit 1
+  fi
+  
+  echo "Using compose command: $compose_cmd"
+  return 0
 }
 
 # Setup .env file if it doesn't exist
@@ -594,21 +595,23 @@ verify_application() {
     sudo_cmd="sudo"
   fi
   
+  # Determine which compose command to use
+  if docker compose version &> /dev/null; then
+    compose_cmd="docker compose"
+  elif command -v docker-compose &> /dev/null; then
+    compose_cmd="docker-compose"
+  else
+    compose_cmd="docker compose" # Default to newer command
+  fi
+  
   # Wait for services to start
   echo "Waiting for services to fully start (10 seconds)..."
   sleep 10
   
   # Check if containers are running
-  mongo_running=$($sudo_cmd docker ps --filter name=eve-tracker-mongodb --format "{{.Names}}" | wc -l)
-  backend_running=$($sudo_cmd docker ps --filter name=eve-tracker-backend --format "{{.Names}}" | wc -l)
-  frontend_running=$($sudo_cmd docker ps --filter name=eve-tracker-frontend --format "{{.Names}}" | wc -l)
-  
-  if [ "$mongo_running" -eq 0 ] || [ "$backend_running" -eq 0 ] || [ "$frontend_running" -eq 0 ]; then
-    echo "Warning: Not all containers are running!"
-    $sudo_cmd docker ps
-  else
-    echo "All containers are running."
-  fi
+  container_status=$($sudo_cmd $compose_cmd ps -a)
+  echo "Container status:"
+  echo "$container_status"
   
   # Try to access the backend API health endpoint
   if command -v curl &> /dev/null; then
