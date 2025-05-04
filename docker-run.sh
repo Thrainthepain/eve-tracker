@@ -2,7 +2,7 @@
 
 # EVE Online Character Tracker - Docker Setup Script
 # Created by: Thrainthepain
-# Last Updated: 2025-05-03 23:48:55
+# Last Updated: 2025-05-04 00:13:23
 
 # Color codes for better readability
 GREEN='\033[0;32m'
@@ -25,22 +25,79 @@ install_prerequisites() {
     # Array of required commands
     declare -a required_cmds=("docker" "curl" "wget" "git")
     
+    missing_cmds=()
     for cmd in "${required_cmds[@]}"; do
         if ! command -v $cmd &> /dev/null; then
-            print_message $RED "$cmd is not installed. Please install it manually."
-            print_message $YELLOW "Required prerequisites: docker, docker-compose, curl, wget, git"
-            exit 1
+            missing_cmds+=($cmd)
         else
             print_message $GREEN "$cmd is already installed"
         fi
     done
     
+    # If any commands are missing, try to install them (Ubuntu-specific)
+    if [ ${#missing_cmds[@]} -gt 0 ]; then
+        print_message $YELLOW "Some required tools are missing: ${missing_cmds[*]}"
+        print_message $YELLOW "Attempting to install missing prerequisites..."
+        
+        # Check if apt is available (Ubuntu)
+        if command -v apt-get &> /dev/null; then
+            print_message $BLUE "Detected Ubuntu/Debian-based system"
+            
+            print_message $YELLOW "Updating package lists..."
+            sudo apt-get update
+            
+            for cmd in "${missing_cmds[@]}"; do
+                print_message $YELLOW "Installing $cmd..."
+                case $cmd in
+                    docker)
+                        # Install Docker properly on Ubuntu
+                        print_message $YELLOW "Docker not found. Installing Docker..."
+                        sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+                        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+                        sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+                        sudo apt-get update
+                        sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+                        sudo usermod -aG docker $USER
+                        print_message $YELLOW "Please log out and back in to apply Docker group changes"
+                        print_message $YELLOW "Then run this script again."
+                        exit 0
+                        ;;
+                    *)
+                        sudo apt-get install -y $cmd
+                        ;;
+                esac
+            done
+        else
+            print_message $RED "Cannot automatically install missing prerequisites."
+            print_message $RED "Please install the following manually: ${missing_cmds[*]}"
+            exit 1
+        fi
+    fi
+    
     # Check Docker Compose
     if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-        print_message $RED "Docker Compose not found. Please install Docker Compose."
-        exit 1
+        print_message $YELLOW "Docker Compose not found. Installing Docker Compose..."
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get install -y docker-compose
+        else
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.18.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+        fi
+        
+        if [ $? -ne 0 ]; then
+            print_message $RED "Failed to install Docker Compose. Please install it manually."
+            exit 1
+        fi
     else
         print_message $GREEN "Docker Compose is installed"
+    fi
+    
+    # Final verification
+    for cmd in "${required_cmds[@]}"; do
+        if ! command -v $cmd &> /dev/null; then
+            print_message $RED "$cmd is still not installed. Please install it manually."
+            exit 1
+        fi
     fi
 }
 
@@ -48,15 +105,26 @@ install_prerequisites() {
 check_resources() {
     print_message $BLUE "Checking system resources..."
     
-    # Check disk space
-    if command -v df &> /dev/null; then
-        free_space=$(df -P . | awk 'NR==2 {print $4}')
-        if [ $free_space -lt 1048576 ]; then  # Less than 1GB free
-            print_message $RED "Not enough free disk space. Need at least 1GB."
-            print_message $RED "Free space: $(($free_space / 1024)) MB"
-            exit 1
+    # Check disk space - compatible with Ubuntu
+    free_space=$(df -P . | awk 'NR==2 {print $4}')
+    if [ $free_space -lt 1048576 ]; then  # Less than 1GB free
+        print_message $RED "Not enough free disk space. Need at least 1GB."
+        print_message $RED "Free space: $(($free_space / 1024)) MB"
+        exit 1
+    else
+        print_message $GREEN "Disk space: $(($free_space / 1024 / 1024)) GB available"
+    fi
+    
+    # Check memory - Ubuntu compatible
+    if [ -f /proc/meminfo ]; then
+        mem_total=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+        mem_available=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
+        mem_available_mb=$((mem_available / 1024))
+        
+        if [ $mem_available_mb -lt 1024 ]; then
+            print_message $YELLOW "Warning: Low memory available (${mem_available_mb}MB). Docker may run slowly."
         else
-            print_message $GREEN "Disk space: $(($free_space / 1024 / 1024)) GB available"
+            print_message $GREEN "Memory: ${mem_available_mb}MB available"
         fi
     fi
     
@@ -83,22 +151,31 @@ check_docker() {
     docker info &> /dev/null
     if [ $? -ne 0 ]; then
         print_message $RED "Docker is not running. Please start Docker and try again."
+        print_message $YELLOW "On Ubuntu, run: sudo systemctl start docker"
         exit 1
     fi
     
-    # Check Docker version
-    docker_version=$(docker version --format '{{.Server.Version}}')
+    # Check Docker version - Ubuntu compatible
+    docker_version=$(docker version --format '{{.Server.Version}}' 2>/dev/null || docker version | grep 'Version:' | head -n 1 | awk '{print $2}')
     print_message $GREEN "Docker Engine version $docker_version is running."
+    
+    # Check Docker service is enabled to auto-start - Ubuntu specific
+    if command -v systemctl &> /dev/null; then
+        if ! systemctl is-enabled docker &> /dev/null; then
+            print_message $YELLOW "Docker service is not enabled to start at boot."
+            print_message $YELLOW "To enable Docker to start at boot: sudo systemctl enable docker"
+        fi
+    fi
     
     # Check for docker-compose command or docker compose plugin
     compose_cmd="none"
     if command -v docker-compose &> /dev/null; then
         compose_cmd="docker-compose"
-        compose_version=$(docker-compose version --short)
+        compose_version=$(docker-compose version --short 2>/dev/null || docker-compose --version | head -n 1 | awk '{print $3}' | tr -d ',')
         print_message $GREEN "Docker Compose standalone version $compose_version found."
     elif docker compose version &> /dev/null; then
         compose_cmd="docker compose"
-        compose_version=$(docker compose version --short)
+        compose_version=$(docker compose version --short 2>/dev/null || docker compose version | head -n 1 | awk '{print $4}')
         print_message $GREEN "Docker Compose plugin version $compose_version found."
     else
         print_message $RED "Docker Compose not found. Please install Docker Compose."
@@ -206,8 +283,8 @@ setup_env_file() {
     read -p "Enter your EVE ESI Client Secret: " eve_client_secret
     read -p "Enter your Developer Email (required by EVE): " dev_email
     
-    # Generate a random session secret
-    session_secret=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
+    # Generate a random session secret - Ubuntu compatible
+    session_secret=$(< /dev/urandom tr -dc 'A-Za-z0-9' | head -c 32 || echo "fallbacksecret123456789012345678901234")
     
     # Prompt for website name and server settings
     read -p "Enter Website Name (default: EVE Character Tracker): " website_name
@@ -245,8 +322,8 @@ setup_env_file() {
     read -p "Enter Backend Port (default: 5000): " backend_port
     backend_port=${backend_port:-"5000"}
     
-    # Generate MongoDB password
-    mongo_password=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)
+    # Generate MongoDB password - Ubuntu compatible
+    mongo_password=$(< /dev/urandom tr -dc 'A-Za-z0-9' | head -c 16 || echo "mongopwd123456789")
     
     # Write all configuration to .env file
     cat > .env << EOF
@@ -347,11 +424,17 @@ create_directories() {
         fi
     done
     
-    # Ensure proper permissions
-    chmod -R 755 logs backups uploads 2>/dev/null || true
+    # Ensure proper permissions - Ubuntu compatible
+    sudo_cmd=""
+    if [ "$(id -u)" -ne 0 ] && [ -d /var/run/docker.sock ]; then
+        # If we're not root but need to set permissions that Docker can access
+        sudo_cmd="sudo"
+    fi
+    
+    $sudo_cmd chmod -R 755 logs backups uploads 2>/dev/null || true
 }
 
-# Fix Docker network issues (common for Docker Desktop)
+# Fix Docker network issues (common for Docker Desktop and Ubuntu)
 fix_network_issues() {
     print_message $BLUE "Checking for Docker network issues..."
     
@@ -367,7 +450,23 @@ fix_network_issues() {
     
     if [ $? -ne 0 ]; then
         print_message $RED "Failed to create Docker network. Check Docker settings."
-        return 1
+        print_message $YELLOW "On Ubuntu, you may need to run Docker commands with sudo."
+        
+        # Try with sudo if not root and first attempt failed
+        if [ "$(id -u)" -ne 0 ]; then
+            print_message $YELLOW "Attempting to create network with sudo..."
+            sudo docker network create eve-network &> /dev/null
+            
+            if [ $? -ne 0 ]; then
+                print_message $RED "Failed to create Docker network even with sudo."
+                return 1
+            else
+                print_message $GREEN "Created Docker network with sudo: eve-network"
+                return 0
+            fi
+        else
+            return 1
+        fi
     else
         print_message $GREEN "Created Docker network: eve-network"
         return 0
@@ -381,18 +480,25 @@ start_containers() {
     # Get the appropriate compose command
     compose_cmd=$(check_docker)
     
+    # Check for sudo requirements on Ubuntu
+    sudo_cmd=""
+    if [ "$(id -u)" -ne 0 ] && [ ! -w "/var/run/docker.sock" ] && [ -f "/var/run/docker.sock" ]; then
+        print_message $YELLOW "Docker socket is not writable by current user. Using sudo for Docker commands."
+        sudo_cmd="sudo"
+    fi
+    
     # Check if we need to force pull images
     if [ "$1" = "rebuild" ]; then
         print_message $BLUE "Force pulling latest images..."
-        $compose_cmd pull
+        $sudo_cmd $compose_cmd pull
     fi
     
     # Start containers
     print_message $BLUE "Starting containers with $compose_cmd..."
     if [ "$1" = "rebuild" ]; then
-        $compose_cmd up -d --build --force-recreate
+        $sudo_cmd $compose_cmd up -d --build --force-recreate
     else
-        $compose_cmd up -d
+        $sudo_cmd $compose_cmd up -d
     fi
     
     # Check if containers started successfully
@@ -401,30 +507,30 @@ start_containers() {
         print_message $YELLOW "Running diagnostic commands..."
         
         print_message $BLUE "\nDocker Compose Logs:"
-        $compose_cmd logs
+        $sudo_cmd $compose_cmd logs
         
         print_message $BLUE "\nRunning containers:"
-        docker ps
+        $sudo_cmd docker ps
         
         exit 1
     fi
     
     # Check if containers are actually running
     sleep 5
-    running_containers=$(docker ps --format '{{.Names}}' | grep -c "eve-tracker")
+    running_containers=$($sudo_cmd docker ps --format '{{.Names}}' | grep -c "eve-tracker")
     expected_containers=3 # mongodb, backend, frontend
     
     if [ $running_containers -lt $expected_containers ]; then
         print_message $RED "Not all containers are running. Expected $expected_containers but found $running_containers."
         print_message $YELLOW "Running containers:"
-        docker ps
+        $sudo_cmd docker ps
         print_message $YELLOW "Checking container logs for errors..."
         
         containers=("eve-tracker-mongodb" "eve-tracker-backend" "eve-tracker-frontend")
         for container in "${containers[@]}"; do
-            if ! docker ps --format '{{.Names}}' | grep -q "$container"; then
+            if ! $sudo_cmd docker ps --format '{{.Names}}' | grep -q "$container"; then
                 print_message $RED "$container is not running. Logs:"
-                docker logs $container
+                $sudo_cmd docker logs $container
             fi
         done
         
@@ -438,7 +544,20 @@ start_containers() {
 verify_application() {
     print_message $BLUE "Verifying application is working..."
     
-    source .env
+    # Ubuntu-compatible way to read env file
+    if [ -f .env ]; then
+        # Extract needed variables
+        SERVER_PROTOCOL=$(grep "^SERVER_PROTOCOL=" .env | cut -d= -f2)
+        FULL_DOMAIN=$(grep "^FULL_DOMAIN=" .env | cut -d= -f2)
+        BACKEND_PORT=$(grep "^BACKEND_PORT=" .env | cut -d= -f2)
+        FRONTEND_PORT=$(grep "^FRONTEND_PORT=" .env | cut -d= -f2)
+    else
+        # Default values if .env doesn't exist
+        SERVER_PROTOCOL="http"
+        FULL_DOMAIN="localhost"
+        BACKEND_PORT="5000"
+        FRONTEND_PORT="80"
+    fi
     
     # Wait a bit for services to fully start
     print_message $YELLOW "Waiting for services to initialize (10 seconds)..."
@@ -448,11 +567,15 @@ verify_application() {
     backend_url="${SERVER_PROTOCOL}://${FULL_DOMAIN}:${BACKEND_PORT}/api/health"
     print_message $BLUE "Checking backend health at: $backend_url"
     
-    if curl -s --connect-timeout 5 "$backend_url" | grep -q "status.*ok\|healthy\|UP"; then
+    if curl -s --connect-timeout 5 "$backend_url" | grep -q "status\|healthy\|UP"; then
         print_message $GREEN "Backend API is accessible!"
     else
         print_message $RED "Backend API is not responding. Check backend container logs:"
-        docker logs eve-tracker-backend
+        sudo_cmd=""
+        if [ "$(id -u)" -ne 0 ] && [ ! -w "/var/run/docker.sock" ] && [ -f "/var/run/docker.sock" ]; then
+            sudo_cmd="sudo"
+        fi
+        $sudo_cmd docker logs eve-tracker-backend
         print_message $YELLOW "This might be normal if the application is still initializing."
     fi
     
@@ -469,7 +592,7 @@ display_welcome_banner() {
     echo -e "║           ${GREEN}EVE Online Character Tracker - Docker Setup${BLUE}          ║"
     echo -e "║                                                               ║"
     echo -e "║  ${YELLOW}Created by: Thrainthepain${BLUE}                                   ║"
-    echo -e "║  ${YELLOW}Last Updated: 2025-05-03 23:48:55${BLUE}                           ║"
+    echo -e "║  ${YELLOW}Last Updated: 2025-05-04 00:13:23${BLUE}                           ║"
     echo -e "║                                                               ║"
     echo -e "╚═══════════════════════════════════════════════════════════════╝${NC}"
 }
@@ -507,7 +630,12 @@ main() {
     
     # Final success message
     if [ -f .env ]; then
-        source .env
+        # Load variables safely for Ubuntu compatibility
+        SERVER_PROTOCOL=$(grep "^SERVER_PROTOCOL=" .env | cut -d= -f2)
+        FULL_DOMAIN=$(grep "^FULL_DOMAIN=" .env | cut -d= -f2)
+        BACKEND_PORT=$(grep "^BACKEND_PORT=" .env | cut -d= -f2)
+        FRONTEND_PORT=$(grep "^FRONTEND_PORT=" .env | cut -d= -f2)
+        
         print_message $GREEN "\nEVE Online Character Tracker is now running!"
         print_message $GREEN "Frontend: ${SERVER_PROTOCOL}://${FULL_DOMAIN}:${FRONTEND_PORT}"
         print_message $GREEN "Backend API: ${SERVER_PROTOCOL}://${FULL_DOMAIN}:${BACKEND_PORT}/api"
@@ -519,9 +647,15 @@ main() {
         print_message $GREEN "Backend API: http://localhost:5000/api"
     fi
     
-    get_compose_cmd=$(check_docker)
-    print_message $YELLOW "\nTo stop the application, run: $get_compose_cmd down"
-    print_message $YELLOW "To view logs, run: $get_compose_cmd logs -f"
+    # Get appropriate compose command for shutdown instructions
+    compose_cmd=$(check_docker)
+    sudo_cmd=""
+    if [ "$(id -u)" -ne 0 ] && [ ! -w "/var/run/docker.sock" ] && [ -f "/var/run/docker.sock" ]; then
+        sudo_cmd="sudo"
+    fi
+    
+    print_message $YELLOW "\nTo stop the application, run: $sudo_cmd $compose_cmd down"
+    print_message $YELLOW "To view logs, run: $sudo_cmd $compose_cmd logs -f"
 }
 
 # Parse command line arguments
