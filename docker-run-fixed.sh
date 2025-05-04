@@ -2,7 +2,7 @@
 
 # EVE Online Character Tracker - Docker Setup Script
 # Created by: Thrainthepain
-# Last Updated: 2025-05-04 03:19:37
+# Last Updated: 2025-05-04 00:24:30
 
 # Color codes for better readability
 GREEN='\033[0;32m'
@@ -103,7 +103,7 @@ install_prerequisites() {
     fi
 }
 
-# Check system resources
+# Check system resources - FIXED LINE 101 ISSUE
 check_resources() {
     print_message $BLUE "Checking system resources..."
     
@@ -122,7 +122,7 @@ check_resources() {
         print_message $GREEN "Disk space: $(($free_space / 1024 / 1024)) GB available"
     fi
     
-    # Check memory - Fixed for all Ubuntu versions
+    # Check memory - FIXED: Proper fallbacks for all Ubuntu versions
     if [ -f /proc/meminfo ]; then
         mem_total=$(grep MemTotal /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "0")
         
@@ -236,7 +236,7 @@ check_docker() {
     echo $compose_cmd
 }
 
-# Check if ports are in use
+# ADDITIONAL FUNCTION: Check if ports are in use
 check_ports() {
     print_message $BLUE "Checking if required ports are available..."
     
@@ -388,7 +388,7 @@ check_env_file() {
     fi
 }
 
-# Function to create or update .env file
+# Function to create or update .env file - FIXED TERNARY OPERATOR ISSUE
 setup_env_file() {
     print_message $BLUE "Creating new .env file..."
     
@@ -623,7 +623,7 @@ create_directories() {
 fix_network_issues() {
     print_message $BLUE "Checking for Docker network issues..."
     
-    # Check Docker socket permissions first - FIXED SOCKET CHECK
+    # Check Docker socket permissions first
     sudo_cmd=""
     if [ "$(id -u)" -ne 0 ] && [ -f "/var/run/docker.sock" ] && [ ! -w "/var/run/docker.sock" ]; then
         print_message $YELLOW "Docker socket is not writable by current user. Using sudo for Docker commands."
@@ -665,14 +665,14 @@ fix_network_issues() {
     fi
 }
 
-# Function to start Docker containers
+# Function to start Docker containers - FIXED SUDO CHECK
 start_containers() {
     print_message $BLUE "Building and starting EVE Tracker containers..."
     
     # Get the appropriate compose command
     compose_cmd=$(check_docker)
     
-    # Check for sudo requirements on Ubuntu - FIXED SOCKET CHECK
+    # Check for sudo requirements on Ubuntu
     sudo_cmd=""
     if [ "$(id -u)" -ne 0 ] && [ -f "/var/run/docker.sock" ] && [ ! -w "/var/run/docker.sock" ]; then
         print_message $YELLOW "Docker socket is not writable by current user. Using sudo for Docker commands."
@@ -745,11 +745,11 @@ start_containers() {
     print_message $GREEN "All containers are running successfully!"
 }
 
-# Verify application is working
+# Verify application is working - FIXED ENV EXTRACTION
 verify_application() {
     print_message $BLUE "Verifying application is working..."
     
-    # Ubuntu-compatible way to read env file - FIXED ENV EXTRACTION
+    # Ubuntu-compatible way to read env file
     if [ -f .env ]; then
         # Extract needed variables carefully with grep
         SERVER_PROTOCOL=$(grep "^SERVER_PROTOCOL=" .env | cut -d= -f2- | tr -d '\r')
@@ -798,14 +798,14 @@ verify_application() {
     print_message $YELLOW "Note: Frontend might take a few more moments to fully initialize."
 }
 
-# Display a welcome banner with correct username and timestamp
+# Display a welcome banner with correct username
 display_welcome_banner() {
     echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════╗"
     echo -e "║                                                               ║"
     echo -e "║           ${GREEN}EVE Online Character Tracker - Docker Setup${BLUE}          ║"
     echo -e "║                                                               ║"
     echo -e "║  ${YELLOW}Created by: Thrainthepain${BLUE}                                   ║"
-    echo -e "║  ${YELLOW}Last Updated: 2025-05-04 03:19:37${BLUE}                           ║"
+    echo -e "║  ${YELLOW}Last Updated: 2025-05-04 00:24:30${BLUE}                           ║"
     echo -e "║                                                               ║"
     echo -e "╚═══════════════════════════════════════════════════════════════╝${NC}"
 }
