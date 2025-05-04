@@ -1,184 +1,78 @@
 #!/bin/bash
 
-# EVE Online Character Tracker - Docker Setup Script
+# EVE Online Character Tracker - Modern Docker Setup Script
 # Created by: Thrainthepaindocker
-# Last Updated: 2025-05-04 14:50:54
+# Last Updated: 2025-05-04 14:57:40
 
-# IMPORTANT: DO NOT USE COLOR CODES OR FANCY ECHO FORMATTING
+# Function for styled output
+echo_style() {
+  echo "$1"
+}
 
-echo "Starting EVE Online Character Tracker setup..."
-
-# Check for Docker installation
-if ! command -v docker >/dev/null 2>&1; then
-  echo "ERROR: Docker is not installed. Please install Docker first."
-  exit 1
-fi
-
-# Check for Docker Compose
-compose_cmd=""
-if command -v docker-compose >/dev/null 2>&1; then
-  echo "Docker Compose standalone is installed."
-  compose_cmd="docker-compose"
-elif docker compose version >/dev/null 2>&1; then
-  echo "Docker Compose plugin is installed."
-  compose_cmd="docker compose"
-else
-  echo "ERROR: Docker Compose not found. Please install Docker Compose."
-  exit 1
-fi
-
-# Check if Docker is running
-if ! docker info >/dev/null 2>&1; then
-  echo "ERROR: Docker is not running."
-  exit 1
-fi
-
-# Set up sudo if needed
-sudo_cmd=""
-if [ "$(id -u)" -ne 0 ] && [ -f "/var/run/docker.sock" ] && [ ! -w "/var/run/docker.sock" ]; then
-  echo "Docker socket is not writable by current user. Using sudo for Docker commands."
-  sudo_cmd="sudo"
-fi
-
-# Check for required files
-echo "Checking for required files..."
-required_files=("Dockerfile" "client/Dockerfile" "docker-compose.yml" "nginx.conf")
-missing_files=0
-
-for file in "${required_files[@]}"; do
-  if [ ! -f "$file" ]; then
-    echo "ERROR: Required file missing: $file"
-    missing_files=1
-  else
-    echo "Found: $file"
+# Check Docker and Docker Compose
+check_docker() {
+  echo_style "Checking for Docker and Docker Compose..."
+  
+  # Check Docker installation
+  if ! command -v docker &> /dev/null; then
+    echo_style "Docker is not installed. Installing Docker..."
+    bash setup-docker.sh
+    if [ $? -ne 0 ]; then
+      echo_style "Failed to install Docker. Please install manually."
+      exit 1
+    fi
   fi
-done
-
-if [ $missing_files -eq 1 ]; then
-  echo "ERROR: Required files are missing. Please check your current directory."
-  exit 1
-fi
-
-# Fix docker-compose.yml
-echo "Updating docker-compose.yml..."
-cp docker-compose.yml docker-compose.yml.backup
-
-# Create a fixed docker-compose.yml
-cat > docker-compose.yml << 'EOF'
-version: '3.8'
-
-services:
-  mongodb:
-    image: mongo:4.4
-    container_name: eve-tracker-mongodb
-    volumes:
-      - mongo_data:/data/db
-    restart: unless-stopped
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME:-root}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD:-password}
-      - TZ=UTC
-    networks:
-      - eve-network
-
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: eve-tracker-backend
-    restart: unless-stopped
-    depends_on:
-      - mongodb
-    environment:
-      - PORT=${PORT:-5000}
-      - MONGO_URI=${MONGO_URI}
-      - CLIENT_URL=${CLIENT_URL:-http://localhost}
-      - SERVER_URL=${SERVER_URL:-http://localhost:5000}
-      - EVE_CLIENT_ID=${EVE_CLIENT_ID}
-      - EVE_CLIENT_SECRET=${EVE_CLIENT_SECRET}
-      - SESSION_SECRET=${SESSION_SECRET}
-      - NODE_ENV=${NODE_ENV:-production}
-      - WEBSITE_NAME=${WEBSITE_NAME}
-      - TZ=UTC
-    ports:
-      - "${BACKEND_PORT:-5000}:${PORT:-5000}"
-    volumes:
-      - ./logs:/app/logs
-      - ./backups:/app/backups
-      - ./uploads:/app/uploads
-    networks:
-      - eve-network
-
-  frontend:
-    build:
-      context: .
-      dockerfile: client/Dockerfile
-    container_name: eve-tracker-frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    environment:
-      - SERVER_PROTOCOL=${SERVER_PROTOCOL:-http}
-      - FULL_DOMAIN=${FULL_DOMAIN:-localhost}
-      - BACKEND_PORT=${BACKEND_PORT:-5000}
-      - SSL_MODE=${SSL_MODE:-skip}
-      - TZ=UTC
-    ports:
-      - "${FRONTEND_PORT:-80}:80"
-      - "443:443"
-    networks:
-      - eve-network
-    volumes:
-      - ./client/public:/usr/share/nginx/html/custom-assets
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf.template
-      - ssl_certs:/etc/nginx/ssl
-      - ./certbot/www:/var/www/certbot
-
-  certbot:
-    image: certbot/certbot
-    container_name: eve-tracker-certbot
-    profiles: ["ssl"]
-    environment:
-      - SSL_MODE=${SSL_MODE:-skip}
-      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-admin@example.com}
-      - DOMAIN=${FULL_DOMAIN:-localhost}
-    volumes:
-      - ssl_certs:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    command: >
-      sh -c "if [ \"$${SSL_MODE}\" = \"letsencrypt\" ]; then 
-              certbot certonly --webroot -w /var/www/certbot --email $${LETSENCRYPT_EMAIL} --agree-tos --no-eff-email -d $${DOMAIN} || echo \"SSL setup failed or not needed\"; 
-            else 
-              echo \"SSL not configured for automatic setup\"; 
-            fi"
-    depends_on:
-      - frontend
-
-networks:
-  eve-network:
-    driver: bridge
-
-volumes:
-  mongo_data:
-  ssl_certs:
-EOF
+  
+  # Check Docker Compose v2
+  if ! docker compose version &> /dev/null; then
+    echo_style "Docker Compose V2 plugin not found. Installing..."
+    sudo apt-get update
+    sudo apt-get install -y docker-compose-plugin
+    if ! docker compose version &> /dev/null; then
+      echo_style "Failed to install Docker Compose plugin. Please install manually."
+      exit 1
+    fi
+  fi
+  
+  echo_style "Docker and Docker Compose are installed."
+}
 
 # Create necessary directories
-echo "Creating necessary directories..."
-mkdir -p logs backups uploads certbot/www client/public/custom-assets
+create_directories() {
+  echo_style "Creating necessary directories..."
+  dirs=("logs" "backups" "uploads" "certbot/www" "client/public/custom-assets")
+  
+  for dir in "${dirs[@]}"; do
+    if [ ! -d "$dir" ]; then
+      mkdir -p "$dir" && echo_style "Created directory: $dir" || {
+        echo_style "Error creating directory $dir. Trying with sudo..."
+        sudo mkdir -p "$dir" || echo_style "Failed to create directory: $dir"
+      }
+    fi
+  done
+  
+  # Set permissions
+  chmod -R 755 logs backups uploads || sudo chmod -R 755 logs backups uploads
+}
 
-# Create or update .env file
-if [ ! -f ".env" ]; then
-  echo "Creating .env file..."
-  
-  # Generate random passwords
-  session_secret=$(head -c 32 /dev/urandom 2>/dev/null | base64 2>/dev/null | tr -dc 'A-Za-z0-9' | head -c 32 || echo "fallbacksecret123")
-  mongo_password=$(head -c 16 /dev/urandom 2>/dev/null | base64 2>/dev/null | tr -dc 'A-Za-z0-9' | head -c 16 || echo "mongopassword123")
-  
-  # Create .env file
-  cat > .env << EOF
+# Create .env file if it doesn't exist
+setup_env() {
+  if [ ! -f .env ]; then
+    echo_style "Creating .env file..."
+    
+    # Generate secure random strings
+    session_secret=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32)
+    mongo_password=$(head -c 16 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 16)
+    
+    # Get user input for required fields
+    read -p "Enter EVE ESI Client ID: " eve_client_id
+    read -p "Enter EVE ESI Client Secret: " eve_client_secret
+    read -p "Enter Developer Email: " dev_email
+    
+    # Create .env file
+    cat > .env << EOF
 # EVE Online Character Tracker Environment Configuration
-# Generated on 2025-05-04 14:50:54
+# Generated on $(date)
 
 # Server Configuration
 PORT=5000
@@ -203,9 +97,9 @@ FRONTEND_PORT=80
 BACKEND_PORT=5000
 
 # EVE Online API Configuration
-EVE_CLIENT_ID=your_client_id
-EVE_CLIENT_SECRET=your_client_secret
-DEV_EMAIL=your_email@example.com
+EVE_CLIENT_ID=${eve_client_id}
+EVE_CLIENT_SECRET=${eve_client_secret}
+DEV_EMAIL=${dev_email}
 
 # Application Settings
 WEBSITE_NAME="EVE Character Tracker"
@@ -213,7 +107,7 @@ DATA_REFRESH_INTERVAL=30
 
 # SSL Configuration
 SSL_MODE=skip
-LETSENCRYPT_EMAIL=your_email@example.com
+LETSENCRYPT_EMAIL=${dev_email}
 
 # Worker Settings
 BACKUP_RETENTION_DAYS=7
@@ -221,45 +115,134 @@ BACKUP_TIME=2:00
 TOKEN_REFRESH_INTERVAL=15
 DB_MAINTENANCE_TIME=3:00
 EOF
-  
-  echo ".env file created with default values."
-  echo "IMPORTANT: Edit your .env file to set up your EVE ESI API credentials."
-else
-  echo ".env file already exists. Using existing configuration."
-fi
+    echo_style ".env file created."
+  else
+    echo_style "Using existing .env file."
+  fi
+}
 
-# Create Docker network
-echo "Setting up Docker network..."
-$sudo_cmd docker network create eve-network 2>/dev/null || true
+# Create or update Docker network
+setup_network() {
+  echo_style "Setting up Docker network..."
+  sudo_cmd=""
+  
+  if [ "$(id -u)" -ne 0 ] && [ -e "/var/run/docker.sock" ] && [ ! -w "/var/run/docker.sock" ]; then
+    sudo_cmd="sudo"
+  fi
+  
+  # Remove network if it exists
+  if $sudo_cmd docker network inspect eve-network &> /dev/null; then
+    echo_style "Removing existing network..."
+    $sudo_cmd docker network rm eve-network &> /dev/null || echo_style "Network in use, keeping existing network."
+  fi
+  
+  # Create network
+  $sudo_cmd docker network create eve-network &> /dev/null || echo_style "Network already exists or creation failed."
+}
 
 # Start containers
-echo "Starting containers..."
-$sudo_cmd $compose_cmd up -d
+start_containers() {
+  echo_style "Starting Docker containers..."
+  sudo_cmd=""
+  
+  if [ "$(id -u)" -ne 0 ] && [ -e "/var/run/docker.sock" ] && [ ! -w "/var/run/docker.sock" ]; then
+    sudo_cmd="sudo"
+  fi
+  
+  rebuild=""
+  if [ "$1" = "rebuild" ]; then
+    rebuild="--build --force-recreate"
+    echo_style "Performing clean rebuild of all containers..."
+  fi
+  
+  # Start containers with modern Docker Compose
+  $sudo_cmd docker compose up -d $rebuild
+  
+  # Check if startup was successful
+  if [ $? -ne 0 ]; then
+    echo_style "Failed to start containers. See logs above for details."
+    exit 1
+  fi
+  
+  # Wait for containers to start
+  echo_style "Waiting for containers to initialize..."
+  sleep 10
+  
+  # Check container status
+  running_count=$($sudo_cmd docker ps --filter name=eve-tracker --format '{{.Names}}' | wc -l)
+  if [ "$running_count" -lt 3 ]; then
+    echo_style "Not all containers are running. Check logs with 'docker compose logs'."
+    exit 1
+  fi
+  
+  echo_style "All containers are running successfully!"
+}
 
-if [ $? -ne 0 ]; then
-  echo "ERROR: Failed to start containers."
-  $sudo_cmd $compose_cmd logs
-  exit 1
+# Show connection information
+show_connection_info() {
+  # Get info from .env
+  if [ -f .env ]; then
+    server_protocol=$(grep "^SERVER_PROTOCOL=" .env | cut -d= -f2-)
+    full_domain=$(grep "^FULL_DOMAIN=" .env | cut -d= -f2-)
+    frontend_port=$(grep "^FRONTEND_PORT=" .env | cut -d= -f2-)
+    backend_port=$(grep "^BACKEND_PORT=" .env | cut -d= -f2-)
+  else
+    server_protocol="http"
+    full_domain="localhost"
+    frontend_port="80"
+    backend_port="5000"
+  fi
+  
+  echo_style "========================================"
+  echo_style "EVE Online Character Tracker is running!"
+  echo_style "========================================"
+  echo_style "Frontend: ${server_protocol}://${full_domain}:${frontend_port}"
+  echo_style "Backend API: ${server_protocol}://${full_domain}:${backend_port}/api"
+  echo_style ""
+  echo_style "Management commands:"
+  echo_style "  docker compose down               - Stop all containers"
+  echo_style "  docker compose logs -f            - View logs"
+  echo_style "  docker compose restart            - Restart all containers"
+  echo_style "========================================"
+}
+
+# Main function
+main() {
+  echo_style "EVE Online Character Tracker Setup"
+  echo_style "Created by: Thrainthepaindocker"
+  echo_style "Last Updated: 2025-05-04 14:57:40"
+  echo_style "========================================"
+  
+  # Check docker installation
+  check_docker
+  
+  # Create directories
+  create_directories
+  
+  # Setup environment
+  setup_env
+  
+  # Setup network
+  setup_network
+  
+  # Start containers
+  start_containers "$1"
+  
+  # Show connection info
+  show_connection_info
+}
+
+# Parse command line arguments
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+  echo "Usage: bash docker-run.sh [OPTIONS]"
+  echo "Options:"
+  echo "  --rebuild, -r    Rebuild all containers"
+  echo "  --help, -h       Show this help message"
+  exit 0
 fi
 
-# Check if containers are running
-echo "Checking if containers are running..."
-sleep 5
-running_containers=$($sudo_cmd docker ps --format '{{.Names}}' | grep -c "eve-tracker" || echo "0")
-
-if [ "$running_containers" -lt 3 ]; then
-  echo "Not all containers are running. Showing logs..."
-  $sudo_cmd $compose_cmd logs
-  exit 1
+if [ "$1" = "--rebuild" ] || [ "$1" = "-r" ]; then
+  main "rebuild"
+else
+  main
 fi
-
-# Successful completion
-echo "===================================================="
-echo "EVE Online Character Tracker is now running!"
-echo "Frontend: http://localhost"
-echo "Backend API: http://localhost:5000/api"
-echo "===================================================="
-echo "To stop the application: $sudo_cmd $compose_cmd down"
-echo "To view logs: $sudo_cmd $compose_cmd logs -f"
-echo "To restart: $sudo_cmd $compose_cmd up -d"
-echo "===================================================="

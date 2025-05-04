@@ -1,37 +1,55 @@
-# Ubuntu-compatible Dockerfile for Backend
-FROM node:18-alpine
+# Modern Dockerfile for Python 3.12 compatibility
+# Last Updated: 2025-05-04 14:57:40
+
+# Node.js base for the backend
+FROM node:20-slim AS backend
 
 WORKDIR /app
 
-# Create necessary directories with proper Linux permissions
+# Install modern tooling including Python 3.12 support
+RUN apt-get update && apt-get install -y \
+    python3-full \
+    python3-pip \
+    python3-venv \
+    mongodb-clients \
+    curl \
+    wget \
+    tzdata \
+    bash \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create log directories with proper permissions
 RUN mkdir -p logs backups uploads \
     && chmod -R 755 logs backups uploads
 
-# Install required tools (compatible with Ubuntu)
-RUN apk add --no-cache mongodb-tools tzdata bash curl wget
-
-# Copy package.json files
+# Copy package files first for better caching
 COPY package*.json ./
-RUN npm install --production
+RUN npm ci --only=production
 
-# Copy server files
+# Copy application files
 COPY server/ ./server/
 COPY config/ ./config/
 COPY public/ ./public/
 
-# Set correct permissions for Linux/Ubuntu
+# Set correct permissions
 RUN find . -type d -exec chmod 755 {} \; \
     && find . -type f -exec chmod 644 {} \; \
     && find ./server -name "*.sh" -exec chmod 755 {} \; 2>/dev/null || true
 
-# Label with build date for tracking
-LABEL org.opencontainers.image.created="2025-05-04T03:19:37Z" \
-      org.opencontainers.image.authors="Thrainthepain" \
-      org.opencontainers.image.title="EVE Online Character Tracker - Backend"
+# Metadata
+LABEL org.opencontainers.image.created="2025-05-04T14:57:40Z" \
+      org.opencontainers.image.authors="Thrainthepaindocker" \
+      org.opencontainers.image.title="EVE Online Character Tracker - Backend" \
+      org.opencontainers.image.version="2.0"
 
-# Add healthcheck that works with both Docker Desktop and Ubuntu's Docker
+# Set environment variables
+ENV NODE_ENV=production \
+    TZ=UTC
+
+# Health check that works with modern Docker
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget -q --spider http://localhost:${PORT:-5000}/api/health || exit 1
 
-# Command to run the server (works on both Docker Desktop and Ubuntu)
+# Command to run the server
 CMD ["node", "server/server.js"]
