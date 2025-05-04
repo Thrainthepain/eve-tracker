@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # EVE Online Character Tracker - All-In-One Docker Setup Script
-# Created by: Thrainthepainfailed
-# Last Updated: 2025-05-04 15:54:45
+# Created by: ThrainthepainNow
+# Last Updated: 2025-05-04 16:06:31
 
 echo "==================================================================="
 echo "EVE Online Character Tracker - All-In-One Docker Setup Script"
-echo "Created by: Thrainthepainfailed"
-echo "Last Updated: 2025-05-04 15:54:45"
+echo "Created by: ThrainthepainNow"
+echo "Last Updated: 2025-05-04 16:06:31"
 echo "==================================================================="
 
 # Function to set up directory structure
@@ -110,7 +110,7 @@ EOF
     echo "Creating minimal nginx.conf..."
     cat > nginx.conf << 'EOF'
 # Simple Nginx configuration
-# Last Updated: 2025-05-04 15:54:45
+# Last Updated: 2025-05-04 16:06:31
 
 server {
     listen 80;
@@ -168,7 +168,8 @@ EOF
     echo "Creating backend Dockerfile..."
     # Write the Dockerfile separately with FIXED DEPENDENCIES
     echo "# Modern Dockerfile for Python 3.12 compatibility" > Dockerfile
-    echo "# Last Updated: 2025-05-04 15:54:45" >> Dockerfile
+    echo "# Created by: ThrainthepainNow" >> Dockerfile
+    echo "# Last Updated: 2025-05-04 16:06:31" >> Dockerfile
     echo "" >> Dockerfile
     echo "# Node.js base for the backend" >> Dockerfile
     echo "FROM node:20-slim AS backend" >> Dockerfile
@@ -176,7 +177,7 @@ EOF
     echo "WORKDIR /app" >> Dockerfile
     echo "" >> Dockerfile
     echo "# Install modern tooling including Python 3.12 support" >> Dockerfile
-    echo "# FIXED: Removed mongodb-clients which was causing the build failure" >> Dockerfile
+    echo "# Removed mongodb-clients which was causing the build failure" >> Dockerfile
     echo "RUN apt-get update && apt-get install -y \\" >> Dockerfile
     echo "    python3-full \\" >> Dockerfile
     echo "    python3-pip \\" >> Dockerfile
@@ -226,7 +227,8 @@ EOF
     
     # Write the frontend Dockerfile separately
     echo "# Modern Dockerfile for Frontend" > client/Dockerfile
-    echo "# Last Updated: 2025-05-04 15:54:45" >> client/Dockerfile
+    echo "# Created by: ThrainthepainNow" >> client/Dockerfile
+    echo "# Last Updated: 2025-05-04 16:06:31" >> client/Dockerfile
     echo "" >> client/Dockerfile
     echo "# Stage 1: Build the React application" >> client/Dockerfile
     echo "FROM node:20-slim as build" >> client/Dockerfile
@@ -282,6 +284,34 @@ EOF
   fi
 }
 
+# Function to check Docker and Docker Compose
+check_docker() {
+  echo "Checking Docker and Docker Compose installation..."
+  
+  # Check for Docker
+  if ! command -v docker &> /dev/null; then
+    echo "Docker is not installed. Please install Docker before running this script."
+    exit 1
+  else
+    echo "Docker is installed."
+  fi
+  
+  # Check for Docker Compose
+  if docker compose version &> /dev/null; then
+    compose_cmd="docker compose"
+    echo "Using Docker Compose v2 plugin."
+  elif command -v docker-compose &> /dev/null; then
+    compose_cmd="docker-compose"
+    echo "Using standalone docker-compose."
+  else
+    echo "Docker Compose not found. Please install Docker Compose before running this script."
+    exit 1
+  fi
+  
+  echo "Using compose command: $compose_cmd"
+  return 0
+}
+
 # Update docker-compose.yml
 update_compose_file() {
   echo "Creating/Updating docker-compose.yml..."
@@ -293,6 +323,9 @@ update_compose_file() {
   fi
   
   cat > docker-compose.yml << 'EOF'
+# EVE Online Character Tracker - Docker Compose Configuration
+# Created by: ThrainthepainNow
+# Last Updated: 2025-05-04 16:06:31
 version: '3.8'
 
 services:
@@ -377,85 +410,6 @@ EOF
   echo "docker-compose.yml file updated."
 }
 
-# Function to check and install Docker if needed
-check_docker() {
-  echo "Checking Docker and Docker Compose installation..."
-  
-  # Check for Docker
-  if ! command -v docker &> /dev/null; then
-    echo "Docker is not installed. Installing Docker..."
-    
-    # Update package lists
-    sudo apt update
-    
-    # Install prerequisites
-    sudo apt install -y \
-      apt-transport-https \
-      ca-certificates \
-      curl \
-      gnupg \
-      lsb-release
-
-    # Add Docker's official GPG key
-    sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    
-    # Add the repository
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-      $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-    
-    # Install Docker Engine and Docker Compose Plugin
-    sudo apt update
-    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    
-    # Add user to docker group
-    sudo usermod -aG docker $USER
-    echo "Added $USER to docker group. You may need to log out and back in for this to take effect."
-    
-    # Fix Python dependencies for newer Ubuntu
-    sudo apt install -y python3-pip python3-distutils python3-setuptools python3-dev build-essential
-  else
-    echo "Docker is already installed."
-  fi
-  
-  # Check for Docker Compose v2 plugin
-  if ! docker compose version &> /dev/null; then
-    # If Docker Compose v2 plugin is not available, check for standalone docker-compose
-    if ! command -v docker-compose &> /dev/null; then
-      echo "Docker Compose not found. Installing Docker Compose plugin..."
-      sudo apt update
-      sudo apt install -y docker-compose-plugin
-      
-      # If still not available, install Python 3 dependencies and pip install
-      if ! docker compose version &> /dev/null; then
-        echo "Installing Docker Compose via pip..."
-        sudo apt install -y python3-pip python3-distutils python3-setuptools
-        sudo pip3 install docker-compose
-      fi
-    else
-      echo "Using standalone docker-compose."
-      # Install Python dependencies to prevent distutils error
-      sudo apt install -y python3-distutils python3-setuptools
-    fi
-  else
-    echo "Docker Compose V2 plugin is installed."
-  fi
-  
-  # Determine which compose command to use
-  if docker compose version &> /dev/null; then
-    compose_cmd="docker compose"
-  elif command -v docker-compose &> /dev/null; then
-    compose_cmd="docker-compose"
-  else
-    echo "No Docker Compose command found. Please install Docker Compose."
-    exit 1
-  fi
-  
-  echo "Using compose command: $compose_cmd"
-  return 0
-}
-
 # Setup .env file if it doesn't exist
 setup_env() {
   if [ ! -f .env ]; then
@@ -478,7 +432,8 @@ setup_env() {
     # Create the .env file
     cat > .env << EOF
 # EVE Online Character Tracker Environment Configuration
-# Generated on $(date)
+# Created by: ThrainthepainNow
+# Last Updated: 2025-05-04 16:06:31
 
 # Server Configuration
 PORT=5000
