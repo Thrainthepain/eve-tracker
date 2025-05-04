@@ -2,7 +2,7 @@
 
 # EVE Online Character Tracker - Docker Setup Script
 # Created by: Thrainthepain
-# Last Updated: 2025-05-04 00:13:23
+# Last Updated: 2025-05-04 00:24:30
 
 # Color codes for better readability
 GREEN='\033[0;32m'
@@ -53,8 +53,8 @@ install_prerequisites() {
                         # Install Docker properly on Ubuntu
                         print_message $YELLOW "Docker not found. Installing Docker..."
                         sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-                        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-                        sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+                        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+                        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
                         sudo apt-get update
                         sudo apt-get install -y docker-ce docker-ce-cli containerd.io
                         sudo usermod -aG docker $USER
@@ -78,8 +78,10 @@ install_prerequisites() {
     if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
         print_message $YELLOW "Docker Compose not found. Installing Docker Compose..."
         if command -v apt-get &> /dev/null; then
-            sudo apt-get install -y docker-compose
+            # Modern Ubuntu versions have docker-compose-plugin
+            sudo apt-get install -y docker-compose-plugin || sudo apt-get install -y docker-compose
         else
+            # Fallback method for older systems
             sudo curl -L "https://github.com/docker/compose/releases/download/v2.18.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
             sudo chmod +x /usr/local/bin/docker-compose
         fi
@@ -101,13 +103,18 @@ install_prerequisites() {
     fi
 }
 
-# Check system resources
+# Check system resources - FIXED LINE 101 ISSUE
 check_resources() {
     print_message $BLUE "Checking system resources..."
     
     # Check disk space - compatible with Ubuntu
     free_space=$(df -P . | awk 'NR==2 {print $4}')
-    if [ $free_space -lt 1048576 ]; then  # Less than 1GB free
+    if [ -z "$free_space" ]; then
+        print_message $YELLOW "Warning: Could not determine free disk space"
+        free_space=0
+    fi
+    
+    if [ "$free_space" -lt 1048576 ]; then  # Less than 1GB free
         print_message $RED "Not enough free disk space. Need at least 1GB."
         print_message $RED "Free space: $(($free_space / 1024)) MB"
         exit 1
@@ -115,25 +122,53 @@ check_resources() {
         print_message $GREEN "Disk space: $(($free_space / 1024 / 1024)) GB available"
     fi
     
-    # Check memory - Ubuntu compatible
+    # Check memory - FIXED: Proper fallbacks for all Ubuntu versions
     if [ -f /proc/meminfo ]; then
-        mem_total=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-        mem_available=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
+        mem_total=$(grep MemTotal /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "0")
+        
+        # MemAvailable might not exist in older kernels (pre-3.14)
+        mem_available=$(grep MemAvailable /proc/meminfo | awk '{print $2}' 2>/dev/null)
+        
+        # If MemAvailable is not found, calculate from MemFree + Cached + Buffers (older method)
+        if [ -z "$mem_available" ]; then
+            mem_free=$(grep MemFree /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "0")
+            mem_cached=$(grep -i "^Cached:" /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "0")
+            mem_buffers=$(grep Buffers /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "0")
+            mem_available=$((mem_free + mem_cached + mem_buffers))
+        fi
+        
+        # Ensure mem_available is a number (default to 0 if parsing failed)
+        if ! [[ "$mem_available" =~ ^[0-9]+$ ]]; then
+            mem_available=0
+        fi
+        
+        # Convert to MB with safer arithmetic
         mem_available_mb=$((mem_available / 1024))
         
-        if [ $mem_available_mb -lt 1024 ]; then
+        if [ "$mem_available_mb" -lt 1024 ]; then
             print_message $YELLOW "Warning: Low memory available (${mem_available_mb}MB). Docker may run slowly."
         else
             print_message $GREEN "Memory: ${mem_available_mb}MB available"
         fi
+    else
+        print_message $YELLOW "Warning: Could not check memory availability (/proc/meminfo not found)"
     fi
     
     # Check if Docker can access internet (needed for pulling images)
     print_message $BLUE "Checking internet connectivity..."
     if ! curl -s --connect-timeout 5 https://registry-1.docker.io > /dev/null; then
-        print_message $RED "Cannot connect to Docker Hub. Check your internet connection or firewall."
-        print_message $YELLOW "If you're behind a proxy, make sure Docker is configured to use it."
-        exit 1
+        # Try HTTP if HTTPS fails (could be firewall or proxy issue)
+        if ! curl -s --connect-timeout 5 http://registry-1.docker.io > /dev/null; then
+            print_message $RED "Cannot connect to Docker Hub. Check your internet connection or firewall."
+            print_message $YELLOW "If you're behind a proxy, make sure Docker is configured to use it."
+            
+            # Check if we can reach other sites
+            if curl -s --connect-timeout 5 https://www.google.com > /dev/null; then
+                print_message $YELLOW "Internet connection works for other sites. This may be a Docker-specific networking issue."
+            fi
+            
+            exit 1
+        fi
     fi
     print_message $GREEN "Internet connectivity verified"
 }
@@ -152,11 +187,27 @@ check_docker() {
     if [ $? -ne 0 ]; then
         print_message $RED "Docker is not running. Please start Docker and try again."
         print_message $YELLOW "On Ubuntu, run: sudo systemctl start docker"
-        exit 1
+        
+        # Check if Docker service exists before trying to start it
+        if command -v systemctl &> /dev/null && systemctl list-unit-files | grep -q docker; then
+            print_message $YELLOW "Attempting to start Docker service..."
+            sudo systemctl start docker
+            
+            # Wait a moment and check again
+            sleep 3
+            if ! docker info &> /dev/null; then
+                print_message $RED "Failed to start Docker service."
+                exit 1
+            else
+                print_message $GREEN "Successfully started Docker service."
+            fi
+        else
+            exit 1
+        fi
     fi
     
-    # Check Docker version - Ubuntu compatible
-    docker_version=$(docker version --format '{{.Server.Version}}' 2>/dev/null || docker version | grep 'Version:' | head -n 1 | awk '{print $2}')
+    # Check Docker version - Ubuntu compatible with better error handling
+    docker_version=$(docker version --format '{{.Server.Version}}' 2>/dev/null || docker version 2>/dev/null | grep 'Version:' | head -n 1 | awk '{print $2}' || echo "unknown")
     print_message $GREEN "Docker Engine version $docker_version is running."
     
     # Check Docker service is enabled to auto-start - Ubuntu specific
@@ -175,7 +226,7 @@ check_docker() {
         print_message $GREEN "Docker Compose standalone version $compose_version found."
     elif docker compose version &> /dev/null; then
         compose_cmd="docker compose"
-        compose_version=$(docker compose version --short 2>/dev/null || docker compose version | head -n 1 | awk '{print $4}')
+        compose_version=$(docker compose version --short 2>/dev/null || docker compose version | head -n 1 | awk '{print $4}' || echo "unknown")
         print_message $GREEN "Docker Compose plugin version $compose_version found."
     else
         print_message $RED "Docker Compose not found. Please install Docker Compose."
@@ -183,6 +234,81 @@ check_docker() {
     fi
     
     echo $compose_cmd
+}
+
+# ADDITIONAL FUNCTION: Check if ports are in use
+check_ports() {
+    print_message $BLUE "Checking if required ports are available..."
+    
+    # Get port values from .env or use defaults
+    local frontend_port=80
+    local backend_port=5000
+    
+    if [ -f .env ]; then
+        frontend_port=$(grep "^FRONTEND_PORT=" .env | cut -d= -f2- || echo "80")
+        backend_port=$(grep "^BACKEND_PORT=" .env | cut -d= -f2- || echo "5000") 
+    fi
+    
+    local ports_in_use=()
+    
+    # Function to check if a port is in use
+    port_in_use() {
+        local port=$1
+        if command -v lsof &> /dev/null; then
+            lsof -i :$port -sTCP:LISTEN &>/dev/null
+            return $?
+        elif command -v netstat &> /dev/null; then
+            netstat -tuln | grep -q ":$port "
+            return $?
+        elif command -v ss &> /dev/null; then
+            ss -tuln | grep -q ":$port "
+            return $?
+        else
+            # If we can't check, assume it's free
+            return 1
+        fi
+    }
+    
+    # Check frontend port
+    if port_in_use "$frontend_port"; then
+        ports_in_use+=("$frontend_port (frontend)")
+    fi
+    
+    # Check backend port
+    if port_in_use "$backend_port"; then
+        ports_in_use+=("$backend_port (backend)")
+    fi
+    
+    # If ports are in use, alert the user
+    if [ ${#ports_in_use[@]} -gt 0 ]; then
+        print_message $YELLOW "Warning: The following ports are already in use: ${ports_in_use[*]}"
+        print_message $YELLOW "This will conflict with the Docker containers."
+        print_message $YELLOW "Options:"
+        print_message $YELLOW "1. Stop the services using these ports"
+        print_message $YELLOW "2. Change the ports in the .env file"
+        print_message $YELLOW "3. Continue anyway (may cause errors)"
+        
+        read -p "Please choose an option (1-3): " port_option
+        
+        case $port_option in
+            1)
+                print_message $YELLOW "Please stop the services and run this script again."
+                exit 0
+                ;;
+            2)
+                if [ -f .env ]; then
+                    print_message $YELLOW "Please edit your .env file to change the ports."
+                else
+                    print_message $YELLOW "You will be prompted to choose different ports during setup."
+                fi
+                ;;
+            *)
+                print_message $YELLOW "Continuing despite port conflicts. This may cause errors."
+                ;;
+        esac
+    else
+        print_message $GREEN "All required ports are available."
+    fi
 }
 
 # Verify required files exist
@@ -262,7 +388,7 @@ check_env_file() {
     fi
 }
 
-# Function to create or update .env file
+# Function to create or update .env file - FIXED TERNARY OPERATOR ISSUE
 setup_env_file() {
     print_message $BLUE "Creating new .env file..."
     
@@ -283,8 +409,8 @@ setup_env_file() {
     read -p "Enter your EVE ESI Client Secret: " eve_client_secret
     read -p "Enter your Developer Email (required by EVE): " dev_email
     
-    # Generate a random session secret - Ubuntu compatible
-    session_secret=$(< /dev/urandom tr -dc 'A-Za-z0-9' | head -c 32 || echo "fallbacksecret123456789012345678901234")
+    # Generate a random session secret - Ubuntu compatible with better fallback
+    session_secret=$(head -c 32 /dev/urandom 2>/dev/null | base64 2>/dev/null | tr -dc 'A-Za-z0-9' | head -c 32 2>/dev/null || openssl rand -base64 32 2>/dev/null | tr -dc 'A-Za-z0-9' | head -c 32 2>/dev/null || echo "fallbacksecret$(date +%s)123456789012345678901234")
     
     # Prompt for website name and server settings
     read -p "Enter Website Name (default: EVE Character Tracker): " website_name
@@ -315,17 +441,61 @@ setup_env_file() {
     fi
     
     # Docker Desktop specific settings
-    print_message $BLUE "Docker Desktop Configuration:"
-    read -p "Enter Frontend Port (default: 80): " frontend_port
-    frontend_port=${frontend_port:-"80"}
+    print_message $BLUE "Docker Configuration:"
     
-    read -p "Enter Backend Port (default: 5000): " backend_port
-    backend_port=${backend_port:-"5000"}
+    # Check if ports are in use first
+    local default_frontend_port=80
+    local default_backend_port=5000
     
-    # Generate MongoDB password - Ubuntu compatible
-    mongo_password=$(< /dev/urandom tr -dc 'A-Za-z0-9' | head -c 16 || echo "mongopwd123456789")
+    # Function to check if a port is in use
+    port_in_use() {
+        local port=$1
+        if command -v lsof &> /dev/null; then
+            lsof -i :$port -sTCP:LISTEN &>/dev/null
+            return $?
+        elif command -v netstat &> /dev/null; then
+            netstat -tuln | grep -q ":$port "
+            return $?
+        elif command -v ss &> /dev/null; then
+            ss -tuln | grep -q ":$port "
+            return $?
+        else
+            # If we can't check, assume it's free
+            return 1
+        fi
+    }
     
-    # Write all configuration to .env file
+    # Check frontend port and suggest alternative if in use
+    if port_in_use $default_frontend_port; then
+        print_message $YELLOW "Warning: Default frontend port $default_frontend_port is already in use."
+        print_message $YELLOW "Please choose a different port."
+        default_frontend_port=8080
+    fi
+    
+    # Check backend port and suggest alternative if in use
+    if port_in_use $default_backend_port; then
+        print_message $YELLOW "Warning: Default backend port $default_backend_port is already in use."
+        print_message $YELLOW "Please choose a different port."
+        default_backend_port=5050
+    fi
+    
+    read -p "Enter Frontend Port (default: ${default_frontend_port}): " frontend_port
+    frontend_port=${frontend_port:-"$default_frontend_port"}
+    
+    read -p "Enter Backend Port (default: ${default_backend_port}): " backend_port
+    backend_port=${backend_port:-"$default_backend_port"}
+    
+    # Generate MongoDB password - Ubuntu compatible with better fallback
+    mongo_password=$(head -c 16 /dev/urandom 2>/dev/null | base64 2>/dev/null | tr -dc 'A-Za-z0-9' | head -c 16 2>/dev/null || openssl rand -base64 16 2>/dev/null | tr -dc 'A-Za-z0-9' | head -c 16 2>/dev/null || echo "mongopwd$(date +%s)")
+    
+    # Set SSL_MODE properly - FIXED TERNARY OPERATOR
+    if [ "$protocol" = "https" ]; then
+        ssl_mode="letsencrypt"
+    else
+        ssl_mode="skip"
+    fi
+    
+    # Write all configuration to .env file - PROPERLY ESCAPED
     cat > .env << EOF
 # EVE Online Character Tracker Environment Configuration
 # Generated on $(date)
@@ -362,7 +532,7 @@ WEBSITE_NAME="${website_name}"
 DATA_REFRESH_INTERVAL=30
 
 # SSL Configuration
-SSL_MODE=${protocol == "https" ? "letsencrypt" : "skip"}
+SSL_MODE=${ssl_mode}
 LETSENCRYPT_EMAIL=${dev_email}
 
 # Worker Settings
@@ -418,62 +588,84 @@ create_directories() {
     for dir in "${directories[@]}"; do
         if [ ! -d "$dir" ]; then
             mkdir -p "$dir"
-            print_message $GREEN "Created directory: $dir"
+            if [ $? -ne 0 ]; then
+                print_message $YELLOW "Warning: Could not create directory $dir. Trying with sudo..."
+                sudo mkdir -p "$dir"
+                if [ $? -ne 0 ]; then
+                    print_message $RED "Failed to create directory $dir even with sudo."
+                else
+                    print_message $GREEN "Created directory with sudo: $dir"
+                fi
+            else
+                print_message $GREEN "Created directory: $dir"
+            fi
         else
             print_message $GREEN "Directory already exists: $dir"
         fi
     done
     
-    # Ensure proper permissions - Ubuntu compatible
+    # Ensure proper permissions - Ubuntu compatible - FIXED SOCKET CHECK
     sudo_cmd=""
-    if [ "$(id -u)" -ne 0 ] && [ -d /var/run/docker.sock ]; then
-        # If we're not root but need to set permissions that Docker can access
+    if [ "$(id -u)" -ne 0 ]; then
+        # If we're not root, use sudo for permission changes
         sudo_cmd="sudo"
     fi
     
     $sudo_cmd chmod -R 755 logs backups uploads 2>/dev/null || true
+    
+    # Fix ownership if directories were created with sudo
+    if [ -n "$sudo_cmd" ]; then
+        $sudo_cmd chown -R $USER:$USER logs backups uploads 2>/dev/null || true
+    fi
 }
 
 # Fix Docker network issues (common for Docker Desktop and Ubuntu)
 fix_network_issues() {
     print_message $BLUE "Checking for Docker network issues..."
     
+    # Check Docker socket permissions first
+    sudo_cmd=""
+    if [ "$(id -u)" -ne 0 ] && [ -f "/var/run/docker.sock" ] && [ ! -w "/var/run/docker.sock" ]; then
+        print_message $YELLOW "Docker socket is not writable by current user. Using sudo for Docker commands."
+        sudo_cmd="sudo"
+    fi
+    
     # Check if eve-network exists, if yes remove it to prevent conflicts
-    if docker network inspect eve-network &> /dev/null; then
+    if $sudo_cmd docker network inspect eve-network &> /dev/null; then
         print_message $YELLOW "Found existing eve-network, removing to prevent conflicts..."
-        docker network rm eve-network &> /dev/null
+        $sudo_cmd docker network rm eve-network &> /dev/null
+        
+        # Verify the network was actually removed (sometimes doesn't due to running containers)
+        if $sudo_cmd docker network inspect eve-network &> /dev/null; then
+            print_message $RED "Warning: Could not remove existing eve-network."
+            print_message $YELLOW "It may be in use by running containers. Consider stopping them first:"
+            print_message $YELLOW "$sudo_cmd docker container ls --filter network=eve-network -q | xargs $sudo_cmd docker container stop"
+            
+            read -p "Attempt to stop containers using the network? (y/n): " stop_option
+            if [[ "$stop_option" == "y" || "$stop_option" == "Y" ]]; then
+                container_ids=$($sudo_cmd docker container ls --filter network=eve-network -q)
+                if [ -n "$container_ids" ]; then
+                    $sudo_cmd docker container stop $container_ids
+                    $sudo_cmd docker network rm eve-network &> /dev/null
+                fi
+            fi
+        fi
     fi
     
     # Create fresh network
     print_message $BLUE "Creating fresh Docker network..."
-    docker network create eve-network &> /dev/null
+    $sudo_cmd docker network create eve-network &> /dev/null
     
     if [ $? -ne 0 ]; then
         print_message $RED "Failed to create Docker network. Check Docker settings."
-        print_message $YELLOW "On Ubuntu, you may need to run Docker commands with sudo."
-        
-        # Try with sudo if not root and first attempt failed
-        if [ "$(id -u)" -ne 0 ]; then
-            print_message $YELLOW "Attempting to create network with sudo..."
-            sudo docker network create eve-network &> /dev/null
-            
-            if [ $? -ne 0 ]; then
-                print_message $RED "Failed to create Docker network even with sudo."
-                return 1
-            else
-                print_message $GREEN "Created Docker network with sudo: eve-network"
-                return 0
-            fi
-        else
-            return 1
-        fi
+        return 1
     else
         print_message $GREEN "Created Docker network: eve-network"
         return 0
     fi
 }
 
-# Function to start Docker containers
+# Function to start Docker containers - FIXED SUDO CHECK
 start_containers() {
     print_message $BLUE "Building and starting EVE Tracker containers..."
     
@@ -482,7 +674,7 @@ start_containers() {
     
     # Check for sudo requirements on Ubuntu
     sudo_cmd=""
-    if [ "$(id -u)" -ne 0 ] && [ ! -w "/var/run/docker.sock" ] && [ -f "/var/run/docker.sock" ]; then
+    if [ "$(id -u)" -ne 0 ] && [ -f "/var/run/docker.sock" ] && [ ! -w "/var/run/docker.sock" ]; then
         print_message $YELLOW "Docker socket is not writable by current user. Using sudo for Docker commands."
         sudo_cmd="sudo"
     fi
@@ -515,10 +707,23 @@ start_containers() {
         exit 1
     fi
     
-    # Check if containers are actually running
-    sleep 5
-    running_containers=$($sudo_cmd docker ps --format '{{.Names}}' | grep -c "eve-tracker")
+    # Check if containers are actually running - with retry
+    max_retries=3
+    retry_count=0
     expected_containers=3 # mongodb, backend, frontend
+    running_containers=0
+    
+    while [ $retry_count -lt $max_retries ]; do
+        sleep 5
+        running_containers=$($sudo_cmd docker ps --format '{{.Names}}' | grep -c "eve-tracker")
+        
+        if [ $running_containers -ge $expected_containers ]; then
+            break
+        fi
+        
+        print_message $YELLOW "Not all containers are running yet. Waiting (attempt $((retry_count+1))/$max_retries)..."
+        retry_count=$((retry_count+1))
+    done
     
     if [ $running_containers -lt $expected_containers ]; then
         print_message $RED "Not all containers are running. Expected $expected_containers but found $running_containers."
@@ -540,17 +745,17 @@ start_containers() {
     print_message $GREEN "All containers are running successfully!"
 }
 
-# Verify application is working
+# Verify application is working - FIXED ENV EXTRACTION
 verify_application() {
     print_message $BLUE "Verifying application is working..."
     
     # Ubuntu-compatible way to read env file
     if [ -f .env ]; then
-        # Extract needed variables
-        SERVER_PROTOCOL=$(grep "^SERVER_PROTOCOL=" .env | cut -d= -f2)
-        FULL_DOMAIN=$(grep "^FULL_DOMAIN=" .env | cut -d= -f2)
-        BACKEND_PORT=$(grep "^BACKEND_PORT=" .env | cut -d= -f2)
-        FRONTEND_PORT=$(grep "^FRONTEND_PORT=" .env | cut -d= -f2)
+        # Extract needed variables carefully with grep
+        SERVER_PROTOCOL=$(grep "^SERVER_PROTOCOL=" .env | cut -d= -f2- | tr -d '\r')
+        FULL_DOMAIN=$(grep "^FULL_DOMAIN=" .env | cut -d= -f2- | tr -d '\r')
+        BACKEND_PORT=$(grep "^BACKEND_PORT=" .env | cut -d= -f2- | tr -d '\r')
+        FRONTEND_PORT=$(grep "^FRONTEND_PORT=" .env | cut -d= -f2- | tr -d '\r')
     else
         # Default values if .env doesn't exist
         SERVER_PROTOCOL="http"
@@ -563,6 +768,12 @@ verify_application() {
     print_message $YELLOW "Waiting for services to initialize (10 seconds)..."
     sleep 10
     
+    # Check for sudo requirements
+    sudo_cmd=""
+    if [ "$(id -u)" -ne 0 ] && [ -f "/var/run/docker.sock" ] && [ ! -w "/var/run/docker.sock" ]; then
+        sudo_cmd="sudo"
+    fi
+    
     # Check if backend API is accessible
     backend_url="${SERVER_PROTOCOL}://${FULL_DOMAIN}:${BACKEND_PORT}/api/health"
     print_message $BLUE "Checking backend health at: $backend_url"
@@ -570,13 +781,15 @@ verify_application() {
     if curl -s --connect-timeout 5 "$backend_url" | grep -q "status\|healthy\|UP"; then
         print_message $GREEN "Backend API is accessible!"
     else
-        print_message $RED "Backend API is not responding. Check backend container logs:"
-        sudo_cmd=""
-        if [ "$(id -u)" -ne 0 ] && [ ! -w "/var/run/docker.sock" ] && [ -f "/var/run/docker.sock" ]; then
-            sudo_cmd="sudo"
-        fi
+        print_message $RED "Backend API is not responding. Checking container logs:"
         $sudo_cmd docker logs eve-tracker-backend
+        
+        # Check container is actually running and listening
+        print_message $YELLOW "Checking if backend container is properly running..."
+        $sudo_cmd docker exec eve-tracker-backend netstat -tuln || true
+        
         print_message $YELLOW "This might be normal if the application is still initializing."
+        print_message $YELLOW "You can try again manually: curl -v $backend_url"
     fi
     
     # Check if frontend is accessible
@@ -585,14 +798,14 @@ verify_application() {
     print_message $YELLOW "Note: Frontend might take a few more moments to fully initialize."
 }
 
-# Display a welcome banner
+# Display a welcome banner with correct username
 display_welcome_banner() {
     echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════╗"
     echo -e "║                                                               ║"
     echo -e "║           ${GREEN}EVE Online Character Tracker - Docker Setup${BLUE}          ║"
     echo -e "║                                                               ║"
     echo -e "║  ${YELLOW}Created by: Thrainthepain${BLUE}                                   ║"
-    echo -e "║  ${YELLOW}Last Updated: 2025-05-04 00:13:23${BLUE}                           ║"
+    echo -e "║  ${YELLOW}Last Updated: 2025-05-04 00:24:30${BLUE}                           ║"
     echo -e "║                                                               ║"
     echo -e "╚═══════════════════════════════════════════════════════════════╝${NC}"
 }
@@ -606,6 +819,9 @@ main() {
     
     # Check system resources
     check_resources
+    
+    # Check if ports are in use
+    check_ports
     
     # Verify required files
     check_files
@@ -628,13 +844,13 @@ main() {
     # Verify application is working
     verify_application
     
-    # Final success message
+    # Final success message with more robust env extraction
     if [ -f .env ]; then
         # Load variables safely for Ubuntu compatibility
-        SERVER_PROTOCOL=$(grep "^SERVER_PROTOCOL=" .env | cut -d= -f2)
-        FULL_DOMAIN=$(grep "^FULL_DOMAIN=" .env | cut -d= -f2)
-        BACKEND_PORT=$(grep "^BACKEND_PORT=" .env | cut -d= -f2)
-        FRONTEND_PORT=$(grep "^FRONTEND_PORT=" .env | cut -d= -f2)
+        SERVER_PROTOCOL=$(grep "^SERVER_PROTOCOL=" .env | cut -d= -f2- | tr -d '\r')
+        FULL_DOMAIN=$(grep "^FULL_DOMAIN=" .env | cut -d= -f2- | tr -d '\r')
+        BACKEND_PORT=$(grep "^BACKEND_PORT=" .env | cut -d= -f2- | tr -d '\r')
+        FRONTEND_PORT=$(grep "^FRONTEND_PORT=" .env | cut -d= -f2- | tr -d '\r')
         
         print_message $GREEN "\nEVE Online Character Tracker is now running!"
         print_message $GREEN "Frontend: ${SERVER_PROTOCOL}://${FULL_DOMAIN}:${FRONTEND_PORT}"
@@ -650,12 +866,13 @@ main() {
     # Get appropriate compose command for shutdown instructions
     compose_cmd=$(check_docker)
     sudo_cmd=""
-    if [ "$(id -u)" -ne 0 ] && [ ! -w "/var/run/docker.sock" ] && [ -f "/var/run/docker.sock" ]; then
+    if [ "$(id -u)" -ne 0 ] && [ -f "/var/run/docker.sock" ] && [ ! -w "/var/run/docker.sock" ]; then
         sudo_cmd="sudo"
     fi
     
     print_message $YELLOW "\nTo stop the application, run: $sudo_cmd $compose_cmd down"
     print_message $YELLOW "To view logs, run: $sudo_cmd $compose_cmd logs -f"
+    print_message $YELLOW "To restart after system reboot, run: $sudo_cmd $compose_cmd up -d"
 }
 
 # Parse command line arguments
