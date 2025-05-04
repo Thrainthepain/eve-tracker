@@ -1,28 +1,22 @@
-// Add this near the top of the existing server.js file:
-const workerManager = require('./workers/workerManager');
-const logger = require('./utils/logger');
+// EVE Online Character Tracker - Minimal Server Implementation
+// Created by: ThrainthepainNow
+// Last Updated: 2025-05-04 16:06:31
 
-// Add this after MongoDB connection is established:
-mongoose.connect(config.mongoUri)
-  .then(() => {
-    logger.info('MongoDB Connected');
-    // Start background workers after successful database connection
-    workerManager.startAll();
-  })
-  .catch(err => logger.error('MongoDB Connection Error:', err));
+const http = require('http');
 
-// Add this for graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM signal received. Shutting down gracefully...');
-  workerManager.stopAll();
-  server.close(() => {
-    logger.info('HTTP server closed');
-    mongoose.connection.close(false, () => {
-      logger.info('MongoDB connection closed');
-      process.exit(0);
-    });
-  });
+const PORT = process.env.PORT || 5000;
+
+// Simple server
+const server = http.createServer((req, res) => {
+  if (req.url === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'healthy', message: 'System is running' }));
+  } else {
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Not found' }));
+  }
 });
 
-// Store the server instance
-const server = app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

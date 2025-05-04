@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # EVE Online Character Tracker - All-In-One Docker Setup Script
-# Created by: Thrainthepainthe
-# Last Updated: 2025-05-04 16:18:57
+# Created by: Thrainthepainfinal
+# Last Updated: 2025-05-04 16:25:12
 
 echo "==================================================================="
 echo "EVE Online Character Tracker - All-In-One Docker Setup Script"
-echo "Created by: Thrainthepainthe"
-echo "Last Updated: 2025-05-04 16:18:57"
+echo "Created by: Thrainthepainfinal"
+echo "Last Updated: 2025-05-04 16:25:12"
 echo "==================================================================="
 
 # Function to set up directory structure
@@ -110,7 +110,7 @@ EOF
     echo "Creating minimal nginx.conf..."
     cat > nginx.conf << 'EOF'
 # Simple Nginx configuration
-# Last Updated: 2025-05-04 16:18:57
+# Last Updated: 2025-05-04 16:25:12
 
 server {
     listen 80;
@@ -168,8 +168,8 @@ EOF
     echo "Creating backend Dockerfile..."
     # Write the Dockerfile separately with FIXED DEPENDENCIES
     echo "# Node.js backend for EVE Online Character Tracker" > Dockerfile
-    echo "# Created by: Thrainthepainthe" >> Dockerfile
-    echo "# Last Updated: 2025-05-04 16:18:57" >> Dockerfile
+    echo "# Created by: Thrainthepainfinal" >> Dockerfile
+    echo "# Last Updated: 2025-05-04 16:25:12" >> Dockerfile
     echo "" >> Dockerfile
     echo "# Node.js base for the backend (version 14+)" >> Dockerfile
     echo "FROM node:14" >> Dockerfile
@@ -177,8 +177,7 @@ EOF
     echo "WORKDIR /app" >> Dockerfile
     echo "" >> Dockerfile
     echo "# Create necessary directories" >> Dockerfile
-    echo "RUN mkdir -p logs backups uploads public \\" >> Dockerfile
-    echo "    && chmod -R 755 logs backups uploads public" >> Dockerfile
+    echo "RUN mkdir -p logs backups uploads public" >> Dockerfile
     echo "" >> Dockerfile
     echo "# Copy package files first for better caching" >> Dockerfile
     echo "COPY package*.json ./" >> Dockerfile
@@ -186,12 +185,7 @@ EOF
     echo "" >> Dockerfile
     echo "# Copy application files" >> Dockerfile
     echo "COPY server/ ./server/" >> Dockerfile
-    echo "COPY config/ ./config/ 2>/dev/null || echo \"No config directory found.\"" >> Dockerfile
-    echo "" >> Dockerfile
-    echo "# Set correct permissions" >> Dockerfile
-    echo "RUN find . -type d -exec chmod 755 {} \; \\" >> Dockerfile
-    echo "    && find . -type f -exec chmod 644 {} \; \\" >> Dockerfile
-    echo "    && find ./server -name \"*.sh\" -exec chmod 755 {} \; 2>/dev/null || true" >> Dockerfile
+    echo "COPY config/ ./config/ 2>/dev/null || true" >> Dockerfile
     echo "" >> Dockerfile
     echo "# Set environment variables" >> Dockerfile
     echo "ENV NODE_ENV=production \\" >> Dockerfile
@@ -199,7 +193,7 @@ EOF
     echo "" >> Dockerfile
     echo "# Health check" >> Dockerfile
     echo "HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \\" >> Dockerfile
-    echo "  CMD wget -q --spider http://localhost:\${PORT:-5000}/api/health || curl -f http://localhost:\${PORT:-5000}/api/health || exit 1" >> Dockerfile
+    echo "  CMD curl -f http://localhost:\${PORT:-5000}/api/health || exit 1" >> Dockerfile
     echo "" >> Dockerfile
     echo "# Command to run the server" >> Dockerfile
     echo "CMD [\"node\", \"server/server.js\"]" >> Dockerfile
@@ -214,8 +208,8 @@ EOF
     
     # Write the frontend Dockerfile separately
     echo "# Frontend Dockerfile for EVE Online Character Tracker" > client/Dockerfile
-    echo "# Created by: Thrainthepainthe" >> client/Dockerfile
-    echo "# Last Updated: 2025-05-04 16:18:57" >> client/Dockerfile
+    echo "# Created by: Thrainthepainfinal" >> client/Dockerfile
+    echo "# Last Updated: 2025-05-04 16:25:12" >> client/Dockerfile
     echo "" >> client/Dockerfile
     echo "# Stage 1: Build the React application" >> client/Dockerfile
     echo "FROM node:14 as build" >> client/Dockerfile
@@ -249,10 +243,7 @@ EOF
     echo "COPY --from=build /app/build /usr/share/nginx/html" >> client/Dockerfile
     echo "" >> client/Dockerfile
     echo "# Copy nginx configuration template" >> client/Dockerfile
-    echo "COPY nginx.conf /etc/nginx/templates/default.conf.template || echo \"listen 80; server_name localhost; root /usr/share/nginx/html;\" > /etc/nginx/templates/default.conf.template" >> client/Dockerfile
-    echo "" >> client/Dockerfile
-    echo "# Install required packages" >> client/Dockerfile
-    echo "RUN apk add --no-cache bash curl openssl" >> client/Dockerfile
+    echo "COPY nginx.conf /etc/nginx/templates/default.conf.template" >> client/Dockerfile
     echo "" >> client/Dockerfile
     echo "# Create startup script to handle SSL certificates" >> client/Dockerfile
     echo "RUN echo '#!/bin/sh' > /docker-entrypoint.d/40-ssl-setup.sh && \\" >> client/Dockerfile
@@ -311,8 +302,8 @@ update_compose_file() {
   
   cat > docker-compose.yml << 'EOF'
 # EVE Online Character Tracker - Docker Compose Configuration
-# Created by: Thrainthepainthe
-# Last Updated: 2025-05-04 16:18:57
+# Created by: Thrainthepainfinal
+# Last Updated: 2025-05-04 16:25:12
 version: '3.8'
 
 services:
@@ -419,8 +410,8 @@ setup_env() {
     # Create the .env file
     cat > .env << EOF
 # EVE Online Character Tracker Environment Configuration
-# Created by: Thrainthepainthe
-# Last Updated: 2025-05-04 16:18:57
+# Created by: Thrainthepainfinal
+# Last Updated: 2025-05-04 16:25:12
 
 # Server Configuration
 PORT=5000
