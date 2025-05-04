@@ -75,8 +75,8 @@ services:
       - TZ=UTC
     ports:
       - "${FRONTEND_PORT:-80}:80"
-      # Conditionally expose 443 - Fixed conditional expression
-      - "${SSL_MODE:-skip}:${SSL_MODE:-skip}:443:443"
+      # FIXED: Properly configure HTTPS port mapping
+      - ${SERVER_PROTOCOL:-http}:${SERVER_PROTOCOL:-http}:443:443
     networks:
       - eve-network
     volumes:
