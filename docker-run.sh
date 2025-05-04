@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # EVE Online Character Tracker - Docker Setup Script
-# Created by: ThrainthepainGetting
-# Last Updated: 2025-05-04 00:31:43
+# Created by: Thrainthepainyes
+# Last Updated: 2025-05-04 00:46:57
 
 # Color codes for better readability
 GREEN='\033[0;32m'
@@ -53,8 +53,8 @@ install_prerequisites() {
                         # Install Docker properly on Ubuntu
                         print_message $YELLOW "Docker not found. Installing Docker..."
                         sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-                        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-                        sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+                        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+                        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
                         sudo apt-get update
                         sudo apt-get install -y docker-ce docker-ce-cli containerd.io
                         sudo usermod -aG docker $USER
@@ -820,8 +820,8 @@ display_welcome_banner() {
     echo -e "║                                                               ║"
     echo -e "║           ${GREEN}EVE Online Character Tracker - Docker Setup${BLUE}          ║"
     echo -e "║                                                               ║"
-    echo -e "║  ${YELLOW}Created by: ThrainthepainGetting${BLUE}                             ║"
-    echo -e "║  ${YELLOW}Last Updated: 2025-05-04 00:31:43${BLUE}                           ║"
+    echo -e "║  ${YELLOW}Created by: Thrainthepainyes${BLUE}                               ║"
+    echo -e "║  ${YELLOW}Last Updated: 2025-05-04 00:46:57${BLUE}                           ║"
     echo -e "║                                                               ║"
     echo -e "╚═══════════════════════════════════════════════════════════════╝${NC}"
 }
