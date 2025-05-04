@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # EVE Online Character Tracker - All-In-One Docker Setup Script
-# Created by: ThrainthepainNow
-# Last Updated: 2025-05-04 16:06:31
+# Created by: Thrainthepainthe
+# Last Updated: 2025-05-04 16:18:57
 
 echo "==================================================================="
 echo "EVE Online Character Tracker - All-In-One Docker Setup Script"
-echo "Created by: ThrainthepainNow"
-echo "Last Updated: 2025-05-04 16:06:31"
+echo "Created by: Thrainthepainthe"
+echo "Last Updated: 2025-05-04 16:18:57"
 echo "==================================================================="
 
 # Function to set up directory structure
@@ -110,7 +110,7 @@ EOF
     echo "Creating minimal nginx.conf..."
     cat > nginx.conf << 'EOF'
 # Simple Nginx configuration
-# Last Updated: 2025-05-04 16:06:31
+# Last Updated: 2025-05-04 16:18:57
 
 server {
     listen 80;
@@ -167,29 +167,16 @@ EOF
   if [ ! -f "Dockerfile" ]; then
     echo "Creating backend Dockerfile..."
     # Write the Dockerfile separately with FIXED DEPENDENCIES
-    echo "# Modern Dockerfile for Python 3.12 compatibility" > Dockerfile
-    echo "# Created by: ThrainthepainNow" >> Dockerfile
-    echo "# Last Updated: 2025-05-04 16:06:31" >> Dockerfile
+    echo "# Node.js backend for EVE Online Character Tracker" > Dockerfile
+    echo "# Created by: Thrainthepainthe" >> Dockerfile
+    echo "# Last Updated: 2025-05-04 16:18:57" >> Dockerfile
     echo "" >> Dockerfile
-    echo "# Node.js base for the backend" >> Dockerfile
-    echo "FROM node:20-slim AS backend" >> Dockerfile
+    echo "# Node.js base for the backend (version 14+)" >> Dockerfile
+    echo "FROM node:14" >> Dockerfile
     echo "" >> Dockerfile
     echo "WORKDIR /app" >> Dockerfile
     echo "" >> Dockerfile
-    echo "# Install modern tooling including Python 3.12 support" >> Dockerfile
-    echo "# Removed mongodb-clients which was causing the build failure" >> Dockerfile
-    echo "RUN apt-get update && apt-get install -y \\" >> Dockerfile
-    echo "    python3-full \\" >> Dockerfile
-    echo "    python3-pip \\" >> Dockerfile
-    echo "    python3-venv \\" >> Dockerfile
-    echo "    curl \\" >> Dockerfile
-    echo "    wget \\" >> Dockerfile
-    echo "    tzdata \\" >> Dockerfile
-    echo "    bash \\" >> Dockerfile
-    echo "    && apt-get clean \\" >> Dockerfile
-    echo "    && rm -rf /var/lib/apt/lists/*" >> Dockerfile
-    echo "" >> Dockerfile
-    echo "# Create log directories and other needed directories with proper permissions" >> Dockerfile
+    echo "# Create necessary directories" >> Dockerfile
     echo "RUN mkdir -p logs backups uploads public \\" >> Dockerfile
     echo "    && chmod -R 755 logs backups uploads public" >> Dockerfile
     echo "" >> Dockerfile
@@ -197,7 +184,7 @@ EOF
     echo "COPY package*.json ./" >> Dockerfile
     echo "RUN npm ci --only=production || npm install --only=production" >> Dockerfile
     echo "" >> Dockerfile
-    echo "# Copy application files - with conditional copy to prevent failures" >> Dockerfile
+    echo "# Copy application files" >> Dockerfile
     echo "COPY server/ ./server/" >> Dockerfile
     echo "COPY config/ ./config/ 2>/dev/null || echo \"No config directory found.\"" >> Dockerfile
     echo "" >> Dockerfile
@@ -210,9 +197,9 @@ EOF
     echo "ENV NODE_ENV=production \\" >> Dockerfile
     echo "    TZ=UTC" >> Dockerfile
     echo "" >> Dockerfile
-    echo "# Health check that works with modern Docker" >> Dockerfile
+    echo "# Health check" >> Dockerfile
     echo "HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \\" >> Dockerfile
-    echo "  CMD wget -q --spider http://localhost:\${PORT:-5000}/api/health || exit 1" >> Dockerfile
+    echo "  CMD wget -q --spider http://localhost:\${PORT:-5000}/api/health || curl -f http://localhost:\${PORT:-5000}/api/health || exit 1" >> Dockerfile
     echo "" >> Dockerfile
     echo "# Command to run the server" >> Dockerfile
     echo "CMD [\"node\", \"server/server.js\"]" >> Dockerfile
@@ -226,12 +213,12 @@ EOF
     mkdir -p client
     
     # Write the frontend Dockerfile separately
-    echo "# Modern Dockerfile for Frontend" > client/Dockerfile
-    echo "# Created by: ThrainthepainNow" >> client/Dockerfile
-    echo "# Last Updated: 2025-05-04 16:06:31" >> client/Dockerfile
+    echo "# Frontend Dockerfile for EVE Online Character Tracker" > client/Dockerfile
+    echo "# Created by: Thrainthepainthe" >> client/Dockerfile
+    echo "# Last Updated: 2025-05-04 16:18:57" >> client/Dockerfile
     echo "" >> client/Dockerfile
     echo "# Stage 1: Build the React application" >> client/Dockerfile
-    echo "FROM node:20-slim as build" >> client/Dockerfile
+    echo "FROM node:14 as build" >> client/Dockerfile
     echo "" >> client/Dockerfile
     echo "WORKDIR /app" >> client/Dockerfile
     echo "" >> client/Dockerfile
@@ -265,7 +252,7 @@ EOF
     echo "COPY nginx.conf /etc/nginx/templates/default.conf.template || echo \"listen 80; server_name localhost; root /usr/share/nginx/html;\" > /etc/nginx/templates/default.conf.template" >> client/Dockerfile
     echo "" >> client/Dockerfile
     echo "# Install required packages" >> client/Dockerfile
-    echo "RUN apk add --no-cache bash curl wget openssl" >> client/Dockerfile
+    echo "RUN apk add --no-cache bash curl openssl" >> client/Dockerfile
     echo "" >> client/Dockerfile
     echo "# Create startup script to handle SSL certificates" >> client/Dockerfile
     echo "RUN echo '#!/bin/sh' > /docker-entrypoint.d/40-ssl-setup.sh && \\" >> client/Dockerfile
@@ -324,13 +311,13 @@ update_compose_file() {
   
   cat > docker-compose.yml << 'EOF'
 # EVE Online Character Tracker - Docker Compose Configuration
-# Created by: ThrainthepainNow
-# Last Updated: 2025-05-04 16:06:31
+# Created by: Thrainthepainthe
+# Last Updated: 2025-05-04 16:18:57
 version: '3.8'
 
 services:
   mongodb:
-    image: mongo:latest
+    image: mongo:4
     container_name: eve-tracker-mongodb
     volumes:
       - mongo_data:/data/db
@@ -432,8 +419,8 @@ setup_env() {
     # Create the .env file
     cat > .env << EOF
 # EVE Online Character Tracker Environment Configuration
-# Created by: ThrainthepainNow
-# Last Updated: 2025-05-04 16:06:31
+# Created by: Thrainthepainthe
+# Last Updated: 2025-05-04 16:18:57
 
 # Server Configuration
 PORT=5000
