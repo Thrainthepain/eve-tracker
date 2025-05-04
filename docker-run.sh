@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # EVE Online Character Tracker - Docker Setup Script
-# Created by: Thrainthepain
-# Last Updated: 2025-05-04 00:24:30
+# Created by: ThrainthepainGetting
+# Last Updated: 2025-05-04 00:31:43
 
 # Color codes for better readability
 GREEN='\033[0;32m'
@@ -53,8 +53,8 @@ install_prerequisites() {
                         # Install Docker properly on Ubuntu
                         print_message $YELLOW "Docker not found. Installing Docker..."
                         sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-                        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-                        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+                        sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
                         sudo apt-get update
                         sudo apt-get install -y docker-ce docker-ce-cli containerd.io
                         sudo usermod -aG docker $USER
@@ -103,12 +103,12 @@ install_prerequisites() {
     fi
 }
 
-# Check system resources - FIXED LINE 101 ISSUE
+# Check system resources - FIXED LINE 103 ISSUE
 check_resources() {
     print_message $BLUE "Checking system resources..."
     
     # Check disk space - compatible with Ubuntu
-    free_space=$(df -P . | awk 'NR==2 {print $4}')
+    free_space=$(df -P . | awk 'NR==2 {print $4}' 2>/dev/null || echo "0")
     if [ -z "$free_space" ]; then
         print_message $YELLOW "Warning: Could not determine free disk space"
         free_space=0
@@ -122,28 +122,44 @@ check_resources() {
         print_message $GREEN "Disk space: $(($free_space / 1024 / 1024)) GB available"
     fi
     
-    # Check memory - FIXED: Proper fallbacks for all Ubuntu versions
+    # Check memory - FIXED: Robust memory check for all Ubuntu versions
     if [ -f /proc/meminfo ]; then
         mem_total=$(grep MemTotal /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "0")
         
         # MemAvailable might not exist in older kernels (pre-3.14)
-        mem_available=$(grep MemAvailable /proc/meminfo | awk '{print $2}' 2>/dev/null)
+        mem_available=$(grep MemAvailable /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "")
         
         # If MemAvailable is not found, calculate from MemFree + Cached + Buffers (older method)
         if [ -z "$mem_available" ]; then
+            # Get memory values with fallbacks if commands fail
             mem_free=$(grep MemFree /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "0")
             mem_cached=$(grep -i "^Cached:" /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "0")
             mem_buffers=$(grep Buffers /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "0")
+            
+            # Clean up values to ensure they are integers
+            mem_free=$(echo "$mem_free" | tr -cd '0-9' || echo "0")
+            mem_cached=$(echo "$mem_cached" | tr -cd '0-9' || echo "0") 
+            mem_buffers=$(echo "$mem_buffers" | tr -cd '0-9' || echo "0")
+            
+            # Set to 0 if empty after cleaning
+            mem_free=${mem_free:-0}
+            mem_cached=${mem_cached:-0}
+            mem_buffers=${mem_buffers:-0}
+            
+            # Safely calculate available memory
             mem_available=$((mem_free + mem_cached + mem_buffers))
+        else
+            # Clean up the mem_available value to ensure it's an integer
+            mem_available=$(echo "$mem_available" | tr -cd '0-9' || echo "0")
+            mem_available=${mem_available:-0}
         fi
         
-        # Ensure mem_available is a number (default to 0 if parsing failed)
-        if ! [[ "$mem_available" =~ ^[0-9]+$ ]]; then
-            mem_available=0
+        # Calculate in MB with error checking
+        if [ "$mem_available" -gt 0 ]; then
+            mem_available_mb=$((mem_available / 1024))
+        else
+            mem_available_mb=0
         fi
-        
-        # Convert to MB with safer arithmetic
-        mem_available_mb=$((mem_available / 1024))
         
         if [ "$mem_available_mb" -lt 1024 ]; then
             print_message $YELLOW "Warning: Low memory available (${mem_available_mb}MB). Docker may run slowly."
@@ -804,8 +820,8 @@ display_welcome_banner() {
     echo -e "║                                                               ║"
     echo -e "║           ${GREEN}EVE Online Character Tracker - Docker Setup${BLUE}          ║"
     echo -e "║                                                               ║"
-    echo -e "║  ${YELLOW}Created by: Thrainthepain${BLUE}                                   ║"
-    echo -e "║  ${YELLOW}Last Updated: 2025-05-04 00:24:30${BLUE}                           ║"
+    echo -e "║  ${YELLOW}Created by: ThrainthepainGetting${BLUE}                             ║"
+    echo -e "║  ${YELLOW}Last Updated: 2025-05-04 00:31:43${BLUE}                           ║"
     echo -e "║                                                               ║"
     echo -e "╚═══════════════════════════════════════════════════════════════╝${NC}"
 }
