@@ -2,12 +2,12 @@
 
 # EVE Online Character Tracker - All-In-One Docker Setup Script
 # Created by: Thrainthepain
-# Last Updated: 2025-05-04 22:25:54
+# Last Updated: 2025-05-04 22:31:36
 
 echo "==================================================================="
 echo "EVE Online Character Tracker - All-In-One Docker Setup Script"
 echo "Created by: Thrainthepain"
-echo "Last Updated: 2025-05-04 22:25:54"
+echo "Last Updated: 2025-05-04 22:31:36"
 echo "==================================================================="
 
 # Function to set up directory structure
@@ -110,7 +110,7 @@ EOF
     echo "Creating minimal nginx.conf..."
     cat > nginx.conf << 'EOF'
 # Simple Nginx configuration
-# Last Updated: 2025-05-04 22:25:54
+# Last Updated: 2025-05-04 22:31:36
 
 server {
     listen 80;
@@ -164,10 +164,10 @@ EOF
   fi
 
   echo "Creating backend Dockerfile..."
-  cat > Dockerfile << EOF
+  cat > Dockerfile << 'EOF'
 # Node.js backend for EVE Online Character Tracker
 # Created by: Thrainthepain
-# Last Updated: 2025-05-04 22:25:54
+# Last Updated: 2025-05-04 22:31:36
 
 FROM node:14
 
@@ -182,15 +182,16 @@ RUN npm ci --only=production || npm install --only=production
 
 # Copy application files
 COPY server/ ./server/
-COPY config/ ./config/ 2>/dev/null || true
+# Copy config directory if it exists
+COPY config/ ./config/ || true
 
 # Set environment variables
-ENV NODE_ENV=production \\
+ENV NODE_ENV=production \
     TZ=UTC
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \\
-  CMD curl -f http://localhost:\${PORT:-5000}/api/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:${PORT:-5000}/api/health || exit 1
 
 # Command to run the server
 CMD ["node", "server/server.js"]
@@ -199,10 +200,10 @@ EOF
 
   echo "Creating frontend Dockerfile..."
   mkdir -p client
-  cat > client/Dockerfile << EOF
+  cat > client/Dockerfile << 'EOF'
 # Frontend Dockerfile for EVE Online Character Tracker
 # Created by: Thrainthepain
-# Last Updated: 2025-05-04 22:25:54
+# Last Updated: 2025-05-04 22:31:36
 
 # Stage 1: Build the React application
 FROM node:14 as build
@@ -223,7 +224,7 @@ COPY client/package*.json ./
 RUN npm install || npm init -y
 
 # Build the application (or create a placeholder)
-RUN mkdir -p build && \\
+RUN mkdir -p build && \
     echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>EVE Tracker</title></head><body><h1>EVE Online Character Tracker</h1><p>Frontend placeholder. Replace with your actual frontend code.</p></body></html>' > build/index.html
 
 # Stage 2: Production image
@@ -239,13 +240,13 @@ COPY --from=build /app/build /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 # Create startup script to handle SSL certificates
-RUN echo '#!/bin/sh' > /docker-entrypoint.d/40-ssl-setup.sh && \\
-    echo 'set -e' >> /docker-entrypoint.d/40-ssl-setup.sh && \\
-    echo 'mkdir -p /etc/nginx/ssl' >> /docker-entrypoint.d/40-ssl-setup.sh && \\
-    echo 'if [ ! -f "/etc/nginx/ssl/fullchain.pem" ]; then' >> /docker-entrypoint.d/40-ssl-setup.sh && \\
-    echo '  echo "Generating self-signed certificate"' >> /docker-entrypoint.d/40-ssl-setup.sh && \\
-    echo '  openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/privkey.pem -out /etc/nginx/ssl/fullchain.pem -subj "/CN=localhost"' >> /docker-entrypoint.d/40-ssl-setup.sh && \\
-    echo 'fi' >> /docker-entrypoint.d/40-ssl-setup.sh && \\
+RUN echo '#!/bin/sh' > /docker-entrypoint.d/40-ssl-setup.sh && \
+    echo 'set -e' >> /docker-entrypoint.d/40-ssl-setup.sh && \
+    echo 'mkdir -p /etc/nginx/ssl' >> /docker-entrypoint.d/40-ssl-setup.sh && \
+    echo 'if [ ! -f "/etc/nginx/ssl/fullchain.pem" ]; then' >> /docker-entrypoint.d/40-ssl-setup.sh && \
+    echo '  echo "Generating self-signed certificate"' >> /docker-entrypoint.d/40-ssl-setup.sh && \
+    echo '  openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/privkey.pem -out /etc/nginx/ssl/fullchain.pem -subj "/CN=localhost"' >> /docker-entrypoint.d/40-ssl-setup.sh && \
+    echo 'fi' >> /docker-entrypoint.d/40-ssl-setup.sh && \
     chmod +x /docker-entrypoint.d/40-ssl-setup.sh
 
 # Expose ports
@@ -295,7 +296,7 @@ update_compose_file() {
   cat > docker-compose.yml << 'EOF'
 # EVE Online Character Tracker - Docker Compose Configuration
 # Created by: Thrainthepain
-# Last Updated: 2025-05-04 22:25:54
+# Last Updated: 2025-05-04 22:31:36
 version: '3.8'
 
 services:
@@ -403,7 +404,7 @@ setup_env() {
     cat > .env << EOF
 # EVE Online Character Tracker Environment Configuration
 # Created by: Thrainthepain
-# Last Updated: 2025-05-04 22:25:54
+# Last Updated: 2025-05-04 22:31:36
 
 # Server Configuration
 PORT=5000
