@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # EVE Online Character Tracker - All-In-One Docker Setup Script
-# Created by: ThrainthepainFix
-# Last Updated: 2025-05-05 00:44:42
+# Created by: ThrainthepainFinal
+# Last Updated: 2025-05-05 00:51:23
 
 echo "==================================================================="
 echo "EVE Online Character Tracker - All-In-One Docker Setup Script"
-echo "Created by: ThrainthepainFix"
-echo "Last Updated: 2025-05-05 00:44:42"
+echo "Created by: ThrainthepainFinal"
+echo "Last Updated: 2025-05-05 00:51:23"
 echo "==================================================================="
 
 # Function to set up directory structure
@@ -110,7 +110,7 @@ EOF
     echo "Creating minimal nginx.conf..."
     cat > nginx.conf << 'EOF'
 # Simple Nginx configuration
-# Last Updated: 2025-05-05 00:44:42
+# Last Updated: 2025-05-05 00:51:23
 
 server {
     listen 80;
@@ -180,8 +180,8 @@ EOF
   echo "Creating backend Dockerfile..."
   cat > Dockerfile << EOF
 # Node.js backend for EVE Online Character Tracker
-# Created by: ThrainthepainFix
-# Last Updated: 2025-05-05 00:44:42
+# Created by: ThrainthepainFinal
+# Last Updated: 2025-05-05 00:51:23
 
 FROM node:14
 
@@ -215,8 +215,8 @@ EOF
   mkdir -p client
   cat > client/Dockerfile << EOF
 # Frontend Dockerfile for EVE Online Character Tracker
-# Created by: ThrainthepainFix
-# Last Updated: 2025-05-05 00:44:42
+# Created by: ThrainthepainFinal
+# Last Updated: 2025-05-05 00:51:23
 
 # Stage 1: Build the React application
 FROM node:14 AS build
@@ -308,8 +308,8 @@ update_compose_file() {
   
   cat > docker-compose.yml << 'EOF'
 # EVE Online Character Tracker - Docker Compose Configuration
-# Created by: ThrainthepainFix
-# Last Updated: 2025-05-05 00:44:42
+# Created by: ThrainthepainFinal
+# Last Updated: 2025-05-05 00:51:23
 version: '3.8'
 
 services:
@@ -381,8 +381,7 @@ services:
 
 networks:
   eve-network:
-    driver: bridge
-    name: eve-network
+    external: true
 
 volumes:
   mongo_data:
@@ -416,8 +415,8 @@ setup_env() {
     # Create the .env file
     cat > .env << EOF
 # EVE Online Character Tracker Environment Configuration
-# Created by: ThrainthepainFix
-# Last Updated: 2025-05-05 00:44:42
+# Created by: ThrainthepainFinal
+# Last Updated: 2025-05-05 00:51:23
 
 # Server Configuration
 PORT=5000
@@ -477,13 +476,16 @@ setup_network() {
     sudo_cmd="sudo"
   fi
   
-  # Check if network exists and create it if not
-  if ! $sudo_cmd docker network inspect eve-network &> /dev/null; then
-    $sudo_cmd docker network create eve-network
-    echo "Created Docker network: eve-network"
-  else
-    echo "Docker network 'eve-network' already exists."
+  # Remove the existing network if it exists
+  if $sudo_cmd docker network inspect eve-network &> /dev/null; then
+    echo "Removing existing Docker network: eve-network"
+    $sudo_cmd docker network rm eve-network || true
+    sleep 2
   fi
+  
+  # Create the network
+  echo "Creating Docker network: eve-network"
+  $sudo_cmd docker network create --driver bridge eve-network
 }
 
 # Start Docker containers
@@ -631,14 +633,14 @@ main() {
   # Step 2: Check for Docker and Docker Compose
   check_docker
   
-  # Step 3: Update the docker-compose.yml file
+  # Step 3: Set up Docker network
+  setup_network
+  
+  # Step 4: Update the docker-compose.yml file
   update_compose_file
   
-  # Step 4: Set up the environment variables file
+  # Step 5: Set up the environment variables file
   setup_env
-  
-  # Step 5: Set up Docker network
-  setup_network
   
   # Step 6: Start the containers
   start_containers "$rebuild_flag"
