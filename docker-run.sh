@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # EVE Online Character Tracker - All-In-One Docker Setup Script
-# Created by: ThrainthepainFinal
-# Last Updated: 2025-05-05 00:51:23
+# Created by: ThrainthepainFix
+# Last Updated: 2025-05-05 00:56:35
 
 echo "==================================================================="
 echo "EVE Online Character Tracker - All-In-One Docker Setup Script"
-echo "Created by: ThrainthepainFinal"
-echo "Last Updated: 2025-05-05 00:51:23"
+echo "Created by: ThrainthepainFix"
+echo "Last Updated: 2025-05-05 00:56:35"
 echo "==================================================================="
 
 # Function to set up directory structure
@@ -110,7 +110,7 @@ EOF
     echo "Creating minimal nginx.conf..."
     cat > nginx.conf << 'EOF'
 # Simple Nginx configuration
-# Last Updated: 2025-05-05 00:51:23
+# Last Updated: 2025-05-05 00:56:35
 
 server {
     listen 80;
@@ -180,8 +180,8 @@ EOF
   echo "Creating backend Dockerfile..."
   cat > Dockerfile << EOF
 # Node.js backend for EVE Online Character Tracker
-# Created by: ThrainthepainFinal
-# Last Updated: 2025-05-05 00:51:23
+# Created by: ThrainthepainFix
+# Last Updated: 2025-05-05 00:56:35
 
 FROM node:14
 
@@ -215,8 +215,8 @@ EOF
   mkdir -p client
   cat > client/Dockerfile << EOF
 # Frontend Dockerfile for EVE Online Character Tracker
-# Created by: ThrainthepainFinal
-# Last Updated: 2025-05-05 00:51:23
+# Created by: ThrainthepainFix
+# Last Updated: 2025-05-05 00:56:35
 
 # Stage 1: Build the React application
 FROM node:14 AS build
@@ -296,6 +296,33 @@ check_docker() {
   return 0
 }
 
+# Clean up any existing Docker resources to avoid conflicts
+cleanup_docker_resources() {
+  echo "Cleaning up any existing Docker resources..."
+  
+  # Determine if sudo is needed
+  sudo_cmd=""
+  if [ "$(id -u)" -ne 0 ] && [ -e "/var/run/docker.sock" ] && [ ! -w "/var/run/docker.sock" ]; then
+    sudo_cmd="sudo"
+  fi
+  
+  # Stop existing containers
+  echo "Stopping any existing containers..."
+  $sudo_cmd docker stop eve-tracker-frontend eve-tracker-backend eve-tracker-mongodb 2>/dev/null || true
+  
+  # Remove existing containers
+  echo "Removing any existing containers..."
+  $sudo_cmd docker rm eve-tracker-frontend eve-tracker-backend eve-tracker-mongodb 2>/dev/null || true
+  
+  # Remove existing network
+  echo "Removing existing Docker network if it exists..."
+  $sudo_cmd docker network rm eve-network 2>/dev/null || true
+  
+  # Wait for cleanup to complete
+  sleep 2
+  echo "Cleanup completed."
+}
+
 # Update docker-compose.yml
 update_compose_file() {
   echo "Creating/Updating docker-compose.yml..."
@@ -308,8 +335,8 @@ update_compose_file() {
   
   cat > docker-compose.yml << 'EOF'
 # EVE Online Character Tracker - Docker Compose Configuration
-# Created by: ThrainthepainFinal
-# Last Updated: 2025-05-05 00:51:23
+# Created by: ThrainthepainFix
+# Last Updated: 2025-05-05 00:56:35
 version: '3.8'
 
 services:
@@ -381,7 +408,7 @@ services:
 
 networks:
   eve-network:
-    external: true
+    name: eve-network
 
 volumes:
   mongo_data:
@@ -415,8 +442,8 @@ setup_env() {
     # Create the .env file
     cat > .env << EOF
 # EVE Online Character Tracker Environment Configuration
-# Created by: ThrainthepainFinal
-# Last Updated: 2025-05-05 00:51:23
+# Created by: ThrainthepainFix
+# Last Updated: 2025-05-05 00:56:35
 
 # Server Configuration
 PORT=5000
@@ -464,28 +491,6 @@ EOF
   else
     echo ".env file already exists, skipping creation."
   fi
-}
-
-# Setup Docker network
-setup_network() {
-  echo "Setting up Docker network..."
-  
-  # Determine if sudo is needed
-  sudo_cmd=""
-  if [ "$(id -u)" -ne 0 ] && [ -e "/var/run/docker.sock" ] && [ ! -w "/var/run/docker.sock" ]; then
-    sudo_cmd="sudo"
-  fi
-  
-  # Remove the existing network if it exists
-  if $sudo_cmd docker network inspect eve-network &> /dev/null; then
-    echo "Removing existing Docker network: eve-network"
-    $sudo_cmd docker network rm eve-network || true
-    sleep 2
-  fi
-  
-  # Create the network
-  echo "Creating Docker network: eve-network"
-  $sudo_cmd docker network create --driver bridge eve-network
 }
 
 # Start Docker containers
@@ -633,8 +638,8 @@ main() {
   # Step 2: Check for Docker and Docker Compose
   check_docker
   
-  # Step 3: Set up Docker network
-  setup_network
+  # Step 3: Clean up existing Docker resources
+  cleanup_docker_resources
   
   # Step 4: Update the docker-compose.yml file
   update_compose_file
