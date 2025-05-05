@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # EVE Online Character Tracker - All-In-One Docker Setup Script
-# Created by: Thrainthepain
-# Last Updated: 2025-05-05 00:36:16
+# Created by: ThrainthepainFix
+# Last Updated: 2025-05-05 00:44:42
 
 echo "==================================================================="
 echo "EVE Online Character Tracker - All-In-One Docker Setup Script"
-echo "Created by: Thrainthepain"
-echo "Last Updated: 2025-05-05 00:36:16"
+echo "Created by: ThrainthepainFix"
+echo "Last Updated: 2025-05-05 00:44:42"
 echo "==================================================================="
 
 # Function to set up directory structure
@@ -110,7 +110,7 @@ EOF
     echo "Creating minimal nginx.conf..."
     cat > nginx.conf << 'EOF'
 # Simple Nginx configuration
-# Last Updated: 2025-05-05 00:36:16
+# Last Updated: 2025-05-05 00:44:42
 
 server {
     listen 80;
@@ -180,8 +180,8 @@ EOF
   echo "Creating backend Dockerfile..."
   cat > Dockerfile << EOF
 # Node.js backend for EVE Online Character Tracker
-# Created by: Thrainthepain
-# Last Updated: 2025-05-05 00:36:16
+# Created by: ThrainthepainFix
+# Last Updated: 2025-05-05 00:44:42
 
 FROM node:14
 
@@ -215,11 +215,11 @@ EOF
   mkdir -p client
   cat > client/Dockerfile << EOF
 # Frontend Dockerfile for EVE Online Character Tracker
-# Created by: Thrainthepain
-# Last Updated: 2025-05-05 00:36:16
+# Created by: ThrainthepainFix
+# Last Updated: 2025-05-05 00:44:42
 
 # Stage 1: Build the React application
-FROM node:14 as build
+FROM node:14 AS build
 
 WORKDIR /app
 
@@ -308,8 +308,8 @@ update_compose_file() {
   
   cat > docker-compose.yml << 'EOF'
 # EVE Online Character Tracker - Docker Compose Configuration
-# Created by: Thrainthepain
-# Last Updated: 2025-05-05 00:36:16
+# Created by: ThrainthepainFix
+# Last Updated: 2025-05-05 00:44:42
 version: '3.8'
 
 services:
@@ -416,8 +416,8 @@ setup_env() {
     # Create the .env file
     cat > .env << EOF
 # EVE Online Character Tracker Environment Configuration
-# Created by: Thrainthepain
-# Last Updated: 2025-05-05 00:36:16
+# Created by: ThrainthepainFix
+# Last Updated: 2025-05-05 00:44:42
 
 # Server Configuration
 PORT=5000
